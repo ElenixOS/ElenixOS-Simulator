@@ -132,10 +132,17 @@ static void _archive_latest_log(void)
   struct tm tm_now;
   char archive_path[EOS_LOG_ARCHIVE_NAME_SIZE];
 
+#ifdef _WIN32
+  if (localtime_s(&tm_now, &now) != 0) {
+    fclose(src);
+    return;
+  }
+#else
   if (!localtime_r(&now, &tm_now)) {
     fclose(src);
     return;
   }
+#endif
 
   if (strftime(archive_path, sizeof(archive_path), "tmp/%Y-%m-%d_%H-%M-%S.log", &tm_now) == 0) {
     fclose(src);
@@ -172,7 +179,11 @@ static void _init_log_file(void)
 {
   eos_service_log_init();
 
+#ifdef _WIN32
+  _mkdir("tmp");
+#else
   mkdir("tmp", 0755);
+#endif
   _archive_latest_log();
 
   g_log_file = fopen(EOS_LOG_LATEST_FILE, "wb");
