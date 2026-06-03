@@ -8,6 +8,9 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #ifndef __EMSCRIPTEN__
 #define _DEFAULT_SOURCE /* needed for usleep() */
 #include <unistd.h>
