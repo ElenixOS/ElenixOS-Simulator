@@ -13,7 +13,7 @@ function(add_flag_if_supported flag)
     endif()
 endfunction()
 
-# 内存错误检测
+# AddressSanitizer
 # add_compile_options(-fsanitize=address)
 # add_link_options(-fsanitize=address)
 

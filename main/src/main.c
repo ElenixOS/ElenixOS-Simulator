@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <sys/stat.h>
 #ifndef __EMSCRIPTEN__
 #define _DEFAULT_SOURCE /* needed for usleep() */
 #include <unistd.h>
@@ -18,6 +20,7 @@
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
 #include "elenix_os.h"
+#include "eos_log.h"
 #include "eos_app.h"
 #include "eos_app_list.h"
 #include "eos_activity.h"
@@ -68,6 +71,129 @@
 // Variables
 lv_obj_t *brightness_mask = NULL;
 
+#ifndef __EMSCRIPTEN__
+#define EOS_LOG_LATEST_FILE "tmp/latest.log"
+#define EOS_LOG_ARCHIVE_NAME_SIZE 128
+
+static FILE *g_log_file = NULL;
+static eos_log_listener_id_t g_log_file_listener_id = -1;
+
+static const char *_log_level_to_str(eos_log_level_t level)
+{
+  switch (level) {
+    case EOS_LOG_LEVEL_DEBUG:
+      return "DEBUG";
+    case EOS_LOG_LEVEL_INFO:
+      return "INFO";
+    case EOS_LOG_LEVEL_WARN:
+      return "WARN";
+    case EOS_LOG_LEVEL_ERROR:
+      return "ERROR";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static void _log_file_listener(eos_log_level_t level, const char *buf, size_t len, void *user_data)
+{
+  (void)len;
+
+  FILE *fp = (FILE *)user_data;
+  if (!fp || !buf) {
+    return;
+  }
+
+  fprintf(fp, "[%s] %s\n", _log_level_to_str(level), buf);
+  fflush(fp);
+}
+
+static void _copy_file(FILE *src, FILE *dst)
+{
+  char buffer[4096];
+  size_t read_len;
+
+  while ((read_len = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+    if (fwrite(buffer, 1, read_len, dst) != read_len) {
+      break;
+    }
+  }
+
+  fflush(dst);
+}
+
+static void _archive_latest_log(void)
+{
+  FILE *src = fopen(EOS_LOG_LATEST_FILE, "rb");
+  if (!src) {
+    return;
+  }
+
+  time_t now = time(NULL);
+  struct tm tm_now;
+  char archive_path[EOS_LOG_ARCHIVE_NAME_SIZE];
+
+  if (!localtime_r(&now, &tm_now)) {
+    fclose(src);
+    return;
+  }
+
+  if (strftime(archive_path, sizeof(archive_path), "tmp/%Y-%m-%d_%H-%M-%S.log", &tm_now) == 0) {
+    fclose(src);
+    return;
+  }
+
+  FILE *dst = fopen(archive_path, "wb");
+  if (!dst) {
+    fclose(src);
+    return;
+  }
+
+  _copy_file(src, dst);
+
+  fclose(dst);
+  fclose(src);
+}
+
+static void _cleanup_log_file(void)
+{
+  if (g_log_file_listener_id >= 0) {
+    eos_log_unregister_listener(g_log_file_listener_id);
+    g_log_file_listener_id = -1;
+  }
+
+  if (g_log_file) {
+    fflush(g_log_file);
+    fclose(g_log_file);
+    g_log_file = NULL;
+  }
+}
+
+static void _init_log_file(void)
+{
+  eos_service_log_init();
+
+  mkdir("tmp", 0755);
+  _archive_latest_log();
+
+  g_log_file = fopen(EOS_LOG_LATEST_FILE, "wb");
+  if (!g_log_file) {
+    return;
+  }
+
+  setvbuf(g_log_file, NULL, _IOLBF, 0);
+  g_log_file_listener_id = eos_log_register_listener("file_log",
+                                                     _log_file_listener,
+                                                     g_log_file,
+                                                     0);
+  if (g_log_file_listener_id < 0) {
+    _cleanup_log_file();
+    return;
+  }
+
+  atexit(_cleanup_log_file);
+}
+#endif  /* !defined(__EMSCRIPTEN__) */
+
 // Function Implementations
 static lv_display_t *hal_init(int32_t w, int32_t h);
 
@@ -104,6 +230,10 @@ int main(int argc, char **argv)
   /*Initialize LVGL*/
   lv_init();
   lv_lodepng_init();
+
+#ifndef __EMSCRIPTEN__
+  _init_log_file();
+#endif
 
 #ifdef __EMSCRIPTEN__
   lock_canvas_size();
