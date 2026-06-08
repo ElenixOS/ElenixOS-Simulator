@@ -1,4 +1,6 @@
 # ElenixOS Simulator
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FElenixOS%2FElenixOS-Simulator.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FElenixOS%2FElenixOS-Simulator?ref=badge_shield)
+
 
 This repository is the dedicated simulator project for ElenixOS on desktop platforms.
 It is pre-configured for VSCode and supports Windows, Linux, and macOS.
@@ -122,3 +124,7 @@ It requires a working version of GCC, GDB and make in your path.
 To allow debugging inside VSCode you will also require a GDB [extension](https://marketplace.visualstudio.com/items?itemName=webfreak.debug) or other suitable debugger. All the requirements, build and debug settings have been pre-configured in the [.workspace](simulator.code-workspace) file.
 
 The project can use **SDL** but it can be easily relaced by any other built-in LVGL dirvers.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FElenixOS%2FElenixOS-Simulator.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FElenixOS%2FElenixOS-Simulator?ref=badge_large)
