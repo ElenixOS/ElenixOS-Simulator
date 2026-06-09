@@ -20,7 +20,8 @@ static int _set_power(dev_power_state_t state)
     case DEV_POWER_STATE_SLEEP:
         if (brightness_mask && lv_obj_is_valid(brightness_mask))
         {
-            lv_obj_add_flag(brightness_mask, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(brightness_mask, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(brightness_mask, LV_OPA_COVER, 0);
         }
         break;
     case DEV_POWER_STATE_ON:

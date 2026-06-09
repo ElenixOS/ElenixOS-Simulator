@@ -22,8 +22,10 @@ import { run_dropdown_test } from './test_lv_dropdown.mjs';
 import { run_image_test } from './test_lv_image.mjs';
 import { run_imagebutton_test } from './test_lv_imagebutton.mjs';
 import { run_sni_exit_cleanup_test } from './test_sni_exit_cleanup.mjs';
+import { run_permission_test } from './test_eos_permission.mjs';
+import { run_stress_test } from './test_eos_stress.mjs';
 
-const TEST_TARGET = 'imagebutton';
+const TEST_TARGET = 'stress';
 
 const TESTS = {
 	obj: run_obj_test,
@@ -44,6 +46,8 @@ const TESTS = {
 	image: run_image_test,
 	imagebutton: run_imagebutton_test,
 	sni_exit_cleanup: run_sni_exit_cleanup_test,
+	permission: run_permission_test,
+	stress: run_stress_test,
 };
 
 function _log(msg) {

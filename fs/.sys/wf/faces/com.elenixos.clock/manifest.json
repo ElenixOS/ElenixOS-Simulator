@@ -3,5 +3,8 @@
     "name":"Clock",
     "version":"1.0.0",
     "author":"Sab1e",
-    "description":"This is a simple clock"
+    "description":"This is a simple clock",
+    "minApiLevel":0,
+    "targetApiLevel":0,
+    "permissions":[]
 }

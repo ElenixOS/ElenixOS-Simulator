@@ -3,5 +3,8 @@
     "name":"LVGLExamples",
     "version":"0.0.1",
     "author":"Sab1e",
-    "description":"LVGL 示例程序"
+    "description":"LVGL 示例程序",
+    "minApiLevel":0,
+    "targetApiLevel":0,
+    "permissions":[]
 }

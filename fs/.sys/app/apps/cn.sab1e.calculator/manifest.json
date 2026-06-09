@@ -3,5 +3,8 @@
     "name":"Calculator",
     "version":"0.0.1",
     "author":"Sab1e",
-    "description":"iOS-style basic calculator"
+    "description":"iOS-style basic calculator",
+    "minApiLevel":0,
+    "targetApiLevel":0,
+    "permissions":[]
 }
