@@ -1,4 +1,4 @@
-name: Deploy WASM to Cloudflare Pages
+name: Deploy WASM to Cloudflare R2
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: true
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
       - name: Build WASM artifacts
         run: cmake --build build-wasm --parallel 1
 
-      - name: Prepare Pages site
+      - name: Prepare site
         run: |
           set -euo pipefail
           SHA="${GITHUB_SHA}"
@@ -83,9 +83,15 @@ jobs:
 
           touch "${SITE_DIR}/.nojekyll"
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: 76e7f693a3e89a7c99ad91743dc982ed
-          command: pages deploy _site --project-name=elenixos-wasm --branch=main
+      - name: Install AWS CLI
+        run: pip install awscli
+
+      - name: Sync to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_REGION: auto
+        run: |
+          aws s3 sync _site s3://elenixos-wasm \
+            --endpoint-url https://76e7f693a3e89a7c99ad91743dc982ed.r2.cloudflarestorage.com \
+            --delete
