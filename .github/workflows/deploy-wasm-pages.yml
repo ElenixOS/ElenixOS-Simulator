@@ -60,38 +60,41 @@ jobs:
           cp -a "${SRC_DIR}/." "${SITE_DIR}/wasm/latest/"
           cp -a "${SRC_DIR}/." "${SITE_DIR}/wasm/${SHORT_SHA}/"
 
-          cat > "${SITE_DIR}/index.html" <<'EOF'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>ElenixOS Simulator WASM</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; line-height: 1.6; }
-              code { background: #f2f2f2; padding: 0.1rem 0.4rem; border-radius: 4px; }
-            </style>
-          </head>
-          <body>
-            <h1>ElenixOS Simulator WASM Artifacts</h1>
-            <p>Latest entry:</p>
-            <p><a href="./wasm/latest/main.html">./wasm/latest/main.html</a></p>
-            <p>Versioned artifacts are available at <code>./wasm/&lt;commit-sha7&gt;/</code>.</p>
-          </body>
-          </html>
-          EOF
-
-          touch "${SITE_DIR}/.nojekyll"
-
       - name: Install AWS CLI
         run: pip install awscli
+
+      - name: Clean old versioned builds (keep last 10)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          
+          aws s3 ls s3://elenixos-wasm/wasm/ \
+            --endpoint-url "$R2_ENDPOINT" \
+            | awk '{print $2}' | sed 's|/||' | grep -v '^latest$' | sort > /tmp/versions.txt
+          
+          TOTAL=$(wc -l < /tmp/versions.txt)
+          if [ "$TOTAL" -gt 10 ]; then
+            echo "Found $TOTAL versioned builds, keeping last 10, deleting $((TOTAL - 10)) old ones..."
+            head -n -10 /tmp/versions.txt | while read -r ver; do
+              echo "Deleting: wasm/$ver"
+              aws s3 rm "s3://elenixos-wasm/wasm/$ver/" --recursive \
+                --endpoint-url "$R2_ENDPOINT"
+            done
+          else
+            echo "Found $TOTAL versioned builds, no cleanup needed."
+          fi
 
       - name: Sync to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
           aws s3 sync _site s3://elenixos-wasm \
-            --endpoint-url https://76e7f693a3e89a7c99ad91743dc982ed.r2.cloudflarestorage.com \
+            --endpoint-url "$R2_ENDPOINT" \
             --delete
