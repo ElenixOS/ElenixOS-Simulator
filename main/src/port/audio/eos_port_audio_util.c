@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include "eos_fs_port.h"
 
+#ifdef __APPLE__
 char *eos_port_audio_resolve_path(const char *path)
 {
     if (!path) return NULL;
@@ -25,6 +26,13 @@ char *eos_port_audio_resolve_path(const char *path)
 
     return NULL;
 }
+#else
+char *eos_port_audio_resolve_path(const char *path)
+{
+    (void)path;
+    return NULL;
+}
+#endif
 
 #ifdef __APPLE__
 CFURLRef eos_port_audio_create_cfurl(const char *path)
