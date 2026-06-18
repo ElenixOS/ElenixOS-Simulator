@@ -28,6 +28,7 @@
 #include "eos_app_list.h"
 #include "eos_activity.h"
 #include "eos_service_storage.h"
+#include "eos_fs_port.h"
 #include "eos_mem.h"
 #include "script_engine_core.h"
 #include "eos_port_vibrator.h"
@@ -36,6 +37,7 @@
 #include "eos_port_time.h"
 #include "eos_port_battery.h"
 #include "eos_port_audio.h"
+#include "eos_audio_decoder.h"
 #include "eos_port_sensor.h"
 #include "eos_service_sensor.h"
 #include "eos_dev_battery.h"
@@ -256,6 +258,8 @@ int main(int argc, char **argv)
   /*Initialize the HAL (display, input devices, tick) for LVGL*/
   hal_init(WINDOW_WIDTH, WINDOW_HEIGHT);
 
+  eos_fs_set_root(EOS_SYS_ROOT_DIR);
+
   eos_port_sensor_init();
   eos_service_sensor_init();
   eos_port_vibrator_init();
@@ -263,6 +267,7 @@ int main(int argc, char **argv)
   eos_port_power_init();
   eos_port_time_init();
   eos_port_battery_init();
+  eos_audio_decoder_init();
   eos_port_audio_init();
 
   eos_init();

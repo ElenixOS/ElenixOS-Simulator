@@ -270,7 +270,4 @@ void eos_locate_phone(void)
     printf("Locate phone\n");
 }
 
-void eos_speaker_set_volume(uint8_t volume)
-{
-    set_system_volume(volume * 0.01);
-}
+
