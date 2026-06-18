@@ -14,6 +14,9 @@
 
 #include "eos_port_audio.h"
 #include "eos_port_audio_decoder.h"
+
+#ifdef __APPLE__
+
 #include "eos_port_audio_util.h"
 #include "eos_dev_speaker.h"
 #include "eos_dev_microphone.h"
@@ -497,3 +500,14 @@ void eos_port_audio_init(void)
     _mic_init();
     eos_port_audio_decoder_init();
 }
+
+#else /* !__APPLE__ */
+
+#include <stdio.h>
+
+void eos_port_audio_init(void)
+{
+    printf("[PortAudio] Audio port stub (not macOS)\n");
+}
+
+#endif /* __APPLE__ */

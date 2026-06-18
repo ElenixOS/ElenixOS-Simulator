@@ -10,6 +10,9 @@
  */
 
 #include "eos_port_audio_decoder.h"
+
+#ifdef __APPLE__
+
 #include "eos_port_audio_util.h"
 #include "eos_audio_decoder.h"
 
@@ -457,3 +460,11 @@ void eos_port_audio_decoder_init(void)
     dec->seek_cb  = NULL;
     EOS_LOG_I("AT decoder registered");
 }
+
+#else /* !__APPLE__ */
+
+void eos_port_audio_decoder_init(void)
+{
+}
+
+#endif /* __APPLE__ */

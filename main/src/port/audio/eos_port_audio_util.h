@@ -9,7 +9,9 @@
 extern "C" {
 #endif
 
+#ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
+#endif
 
 /**
  * @brief Resolve an audio file path for AudioToolbox APIs.
@@ -19,12 +21,14 @@ extern "C" {
  */
 char *eos_port_audio_resolve_path(const char *path);
 
+#ifdef __APPLE__
 /**
  * @brief Create a CFURLRef from a C file path.
  * @param path Absolute file path
  * @return CFURLRef (caller must CFRelease), or NULL
  */
 CFURLRef eos_port_audio_create_cfurl(const char *path);
+#endif
 
 #ifdef __cplusplus
 }

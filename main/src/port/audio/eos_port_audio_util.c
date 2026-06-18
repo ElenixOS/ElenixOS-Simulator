@@ -26,6 +26,7 @@ char *eos_port_audio_resolve_path(const char *path)
     return NULL;
 }
 
+#ifdef __APPLE__
 CFURLRef eos_port_audio_create_cfurl(const char *path)
 {
     return CFURLCreateFromFileSystemRepresentation(
@@ -34,3 +35,4 @@ CFURLRef eos_port_audio_create_cfurl(const char *path)
         strlen(path),
         false);
 }
+#endif
