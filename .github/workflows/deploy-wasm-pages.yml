@@ -7,6 +7,7 @@ on:
       - "CMakeLists.txt"
       - "main/**"
       - "fs/**"
+      - "ElenixOS"
       - "ElenixOS/**"
       - "lvgl/**"
       - "lv_drivers/**"

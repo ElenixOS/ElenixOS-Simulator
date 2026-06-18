@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - CMakeLists.txt
+      - ElenixOS
       - ElenixOS/**
       - FreeRTOS/**
       - config/**
@@ -19,6 +20,7 @@ on:
       - main
     paths:
       - CMakeLists.txt
+      - ElenixOS
       - ElenixOS/**
       - FreeRTOS/**
       - config/**
