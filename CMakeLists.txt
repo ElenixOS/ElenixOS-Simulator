@@ -169,6 +169,8 @@ set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/port/sensor/eos_port_sensor.c
     ${PROJECT_SOURCE_DIR}/main/src/port/battery/eos_port_battery.c
     ${PROJECT_SOURCE_DIR}/main/src/port/audio/eos_port_audio.c
+    ${PROJECT_SOURCE_DIR}/main/src/port/audio/eos_port_audio_decoder.c
+    ${PROJECT_SOURCE_DIR}/main/src/port/audio/eos_port_audio_util.c
 )
 
 if(USE_FREERTOS)
