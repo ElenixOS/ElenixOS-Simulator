@@ -196,6 +196,13 @@ if(MSVC)
     target_link_options(main PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:elenixos_lib>")
 elseif(APPLE)
     target_link_options(main PRIVATE "-Wl,-force_load,$<TARGET_FILE:elenixos_lib>")
+elseif(MINGW)
+    target_link_options(main PRIVATE
+        "-Wl,--start-group"
+        "-Wl,--whole-archive"
+        "$<TARGET_FILE:elenixos_lib>"
+        "-Wl,--no-whole-archive"
+    )
 else()
     target_link_options(main PRIVATE
         "-Wl,--whole-archive"
@@ -254,6 +261,10 @@ else()
         m
         pthread
     )
+endif()
+
+if(MINGW AND NOT EOS_IS_WASM)
+    target_link_options(main PRIVATE "-Wl,--end-group")
 endif()
 
 if(EOS_IS_WASM)
