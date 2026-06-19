@@ -131,6 +131,8 @@ add_compile_definitions($<$<BOOL:${LV_USE_LIBJPEG_TURBO}>:LV_USE_LIBJPEG_TURBO=1
 add_compile_definitions($<$<BOOL:${LV_USE_FFMPEG}>:LV_USE_FFMPEG=1>)
 add_compile_definitions(EOS_PLATFORM_${EOS_PLATFORM}=1)
 
+set(LV_CONF_BUILD_DISABLE_EXAMPLES ON CACHE BOOL "Disable LVGL examples" FORCE)
+set(LV_CONF_BUILD_DISABLE_DEMOS ON CACHE BOOL "Disable LVGL demos" FORCE)
 add_subdirectory(lvgl)
 
 if(EOS_IS_WASM)
@@ -256,7 +258,7 @@ if(EOS_IS_WASM)
             "-sASSERTIONS=0"
             "-sSAFE_HEAP=0"
             "-sEXIT_RUNTIME=0"
-            "-sENVIRONMENT=web"
+            "-sNO_DISABLE_EXCEPTION_CATCHING"
             "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
             "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
             "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
