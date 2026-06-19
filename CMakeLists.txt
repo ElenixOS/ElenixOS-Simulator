@@ -231,21 +231,39 @@ if(EOS_IS_WASM)
         VERBATIM
     )
 
-    target_link_options(main PRIVATE
-        "-sUSE_SDL=2"
-        "-sALLOW_MEMORY_GROWTH=1"
-        "-sSTACK_SIZE=1048576"
-        "-sASSERTIONS=1"
-        "-sSAFE_HEAP=0"
-        "-sEXIT_RUNTIME=0"
-        "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
-        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
-        "-sNO_DISABLE_EXCEPTION_CATCHING"
-        "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
-        "--preload-file=${PROJECT_SOURCE_DIR}/fs/.sys@/.sys"
-        "--preload-file=${PROJECT_SOURCE_DIR}/main/static@/.simulator/img"
-        "--source-map-base=${EOS_WASM_SOURCE_MAP_BASE}"
-    )
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_link_options(main PRIVATE
+            "-sUSE_SDL=2"
+            "-sALLOW_MEMORY_GROWTH=1"
+            "-sSTACK_SIZE=1048576"
+            "-sASSERTIONS=1"
+            "-sSAFE_HEAP=0"
+            "-sEXIT_RUNTIME=0"
+            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
+            "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+            "-sNO_DISABLE_EXCEPTION_CATCHING"
+            "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
+            "--preload-file=${PROJECT_SOURCE_DIR}/fs/.sys@/.sys"
+            "--preload-file=${PROJECT_SOURCE_DIR}/main/static@/.simulator/img"
+            "--source-map-base=${EOS_WASM_SOURCE_MAP_BASE}"
+        )
+    else()
+        target_link_options(main PRIVATE
+            "-O3"
+            "-sUSE_SDL=2"
+            "-sALLOW_MEMORY_GROWTH=1"
+            "-sSTACK_SIZE=1048576"
+            "-sASSERTIONS=0"
+            "-sSAFE_HEAP=0"
+            "-sEXIT_RUNTIME=0"
+            "-sENVIRONMENT=web"
+            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
+            "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+            "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
+            "--preload-file=${PROJECT_SOURCE_DIR}/fs/.sys@/.sys"
+            "--preload-file=${PROJECT_SOURCE_DIR}/main/static@/.simulator/img"
+        )
+    endif()
 
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_options(main PRIVATE -gsource-map)
@@ -254,7 +272,7 @@ if(EOS_IS_WASM)
 else()
     target_link_libraries(main PRIVATE
         elenixos_lib
-        lvgl lvgl::examples lvgl::demos lvgl::thorvg
+        lvgl lvgl::thorvg
         ${SDL2_LIBRARIES}
         m
         pthread
@@ -268,7 +286,7 @@ endif()
 if(EOS_IS_WASM)
     target_link_libraries(main PRIVATE
         elenixos_lib
-        lvgl lvgl::examples lvgl::demos lvgl::thorvg
+        lvgl lvgl::thorvg
     )
 endif()
 
