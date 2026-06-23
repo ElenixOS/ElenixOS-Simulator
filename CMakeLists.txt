@@ -14,8 +14,8 @@ function(add_flag_if_supported flag)
 endfunction()
 
 # AddressSanitizer
-# add_compile_options(-fsanitize=address)
-# add_link_options(-fsanitize=address)
+add_compile_options(-fsanitize=address)
+add_link_options(-fsanitize=address)
 
 if(NOT MSVC)
   add_flag_if_supported("-Wno-unterminated-string-initialization")
@@ -94,7 +94,6 @@ include_directories(${PROJECT_SOURCE_DIR}/main/src/port/sensor)
 include_directories(${PROJECT_SOURCE_DIR}/main/src/port/battery)
 include_directories(${PROJECT_SOURCE_DIR}/main/src/port/audio)
 include_directories(${PROJECT_SOURCE_DIR}/main/inc)
-include_directories(${PROJECT_SOURCE_DIR}/debugger_box)
 
 option(LV_USE_DRAW_SDL "Use SDL draw unit" OFF)
 option(LV_USE_LIBPNG "Use libpng to decode PNG" OFF)
@@ -164,6 +163,7 @@ set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/jerry_port.c
     ${PROJECT_SOURCE_DIR}/main/src/mac_api.c
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_throttler.c
     ${PROJECT_SOURCE_DIR}/main/src/port/vibrator/eos_port_vibrator.c
     ${PROJECT_SOURCE_DIR}/main/src/port/display/eos_port_display.c
     ${PROJECT_SOURCE_DIR}/main/src/port/power/eos_port_power.c
@@ -174,6 +174,10 @@ set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/port/audio/eos_port_audio_decoder.c
     ${PROJECT_SOURCE_DIR}/main/src/port/audio/eos_port_audio_util.c
 )
+
+if(NOT EOS_IS_WASM)
+    list(APPEND EOS_MAIN_SOURCES ${PROJECT_SOURCE_DIR}/main/src/eos_debugger.c)
+endif()
 
 if(USE_FREERTOS)
     list(APPEND EOS_MAIN_SOURCES
@@ -241,7 +245,7 @@ if(EOS_IS_WASM)
             "-sASSERTIONS=1"
             "-sSAFE_HEAP=0"
             "-sEXIT_RUNTIME=0"
-            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
+            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js','_eos_wasm_throttler_master_enable','_eos_wasm_throttler_set_master','_eos_wasm_throttler_apply_preset','_eos_wasm_throttler_get_config','_eos_wasm_throttler_get_stats','_eos_wasm_throttler_set_config']"
             "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
             "-sNO_DISABLE_EXCEPTION_CATCHING"
             "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
@@ -259,7 +263,7 @@ if(EOS_IS_WASM)
             "-sSAFE_HEAP=0"
             "-sEXIT_RUNTIME=0"
             "-sNO_DISABLE_EXCEPTION_CATCHING"
-            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js']"
+            "-sEXPORTED_FUNCTIONS=['_main','_eos_wasm_crown_click','_eos_wasm_side_click','_eos_wasm_launch_app_by_id','_eos_wasm_reload_current_script','_eos_wasm_back_to_watchface','_eos_wasm_write_app_main_js','_eos_wasm_read_app_main_js','_eos_wasm_throttler_master_enable','_eos_wasm_throttler_set_master','_eos_wasm_throttler_apply_preset','_eos_wasm_throttler_get_config','_eos_wasm_throttler_get_stats','_eos_wasm_throttler_set_config']"
             "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
             "--shell-file=${PROJECT_SOURCE_DIR}/main/wasm_shell.html"
             "--preload-file=${PROJECT_SOURCE_DIR}/fs/.sys@/.sys"

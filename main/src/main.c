@@ -14,6 +14,8 @@
 #ifndef __EMSCRIPTEN__
 #define _DEFAULT_SOURCE /* needed for usleep() */
 #include <unistd.h>
+#include <SDL.h>
+#include <time.h>
 #endif
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
@@ -41,6 +43,8 @@
 #include "eos_port_sensor.h"
 #include "eos_service_sensor.h"
 #include "eos_dev_battery.h"
+#include "eos_throttler.h"
+#include "eos_debugger.h"
 
 // Macros and Definitions
 
@@ -75,6 +79,9 @@
 
 // Variables
 lv_obj_t *brightness_mask = NULL;
+static lv_obj_t *g_watch_box = NULL;
+static lv_obj_t *g_sim_container = NULL;
+static lv_display_t *g_sdl_disp = NULL;
 
 #ifndef __EMSCRIPTEN__
 #define EOS_LOG_LATEST_FILE "tmp/latest.log"
@@ -234,6 +241,18 @@ static EM_BOOL eos_main_loop_frame(double time, void *user_data)
 }
 #endif
 
+#ifndef __EMSCRIPTEN__
+static int _sdl_key_filter(void *userdata, SDL_Event *event)
+{
+  (void)userdata;
+  if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_BACKQUOTE
+      && !event->key.repeat) {
+    eos_debugger_toggle();
+  }
+  return 1;
+}
+#endif
+
 #ifdef _WIN32
 #define main SDL_main
 #endif
@@ -270,6 +289,13 @@ int main(int argc, char **argv)
   eos_audio_decoder_init();
   eos_port_audio_init();
 
+  eos_throttler_init();
+#ifndef __EMSCRIPTEN__
+  eos_debugger_init(g_sdl_disp, g_sim_container, g_watch_box);
+  SDL_AddEventWatch(_sdl_key_filter, NULL);
+  lv_tick_set_cb(NULL);
+#endif
+
   eos_init();
 #ifdef __EMSCRIPTEN__
   emscripten_request_animation_frame_loop(eos_main_loop_frame, NULL);
@@ -277,7 +303,22 @@ int main(int argc, char **argv)
   while (1)
   {
     uint32_t d = eos_main_loop();
-    usleep(d * 1000);
+    uint32_t adj = eos_throttler_adjust_tick_delay(d);
+    lv_tick_inc(adj);
+    eos_debugger_update();
+    if (adj > 2) {
+      uint32_t busy = adj / 3;
+      struct timespec t0, t1;
+      clock_gettime(CLOCK_MONOTONIC, &t0);
+      if (busy > 0) {
+        long busy_ns = (long)busy * 1000000L;
+        do { clock_gettime(CLOCK_MONOTONIC, &t1); }
+        while ((t1.tv_sec - t0.tv_sec) * 1000000000L + (t1.tv_nsec - t0.tv_nsec) < busy_ns);
+      }
+      usleep((adj - busy) * 1000);
+    } else {
+      usleep(adj * 1000);
+    }
   }
 #endif
   return 0;
@@ -292,6 +333,12 @@ static void _crown_clicked_cb(lv_event_t *e)
 static void _side_button_clicked_cb(lv_event_t *e)
 {
   eos_side_button_report(EOS_BUTTON_STATE_CLICKED);
+}
+
+static void _debug_toggle_cb(lv_event_t *e)
+{
+  (void)e;
+  eos_debugger_toggle();
 }
 #endif
 
@@ -403,6 +450,129 @@ EMSCRIPTEN_KEEPALIVE const char *eos_wasm_read_app_main_js(const char *app_id)
 
   g_wasm_last_read_code = eos_storage_read_file(script_path);
   return g_wasm_last_read_code;
+}
+
+EMSCRIPTEN_KEEPALIVE int eos_wasm_throttler_master_enable(void)
+{
+  return eos_throttler_get_master_enable() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE void eos_wasm_throttler_set_master(int enabled)
+{
+  eos_throttler_set_master_enable(enabled != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE void eos_wasm_throttler_apply_preset(int preset_id)
+{
+  if (preset_id >= 0 && preset_id < EOS_THROTTLE_PRESET_COUNT) {
+    eos_throttler_apply_preset((eos_throttle_preset_t)preset_id);
+  }
+}
+
+static char g_wasm_throttle_buf[4096];
+static char g_wasm_throttle_buf2[4096];
+
+EMSCRIPTEN_KEEPALIVE const char *eos_wasm_throttler_get_config(void)
+{
+  eos_throttler_config_t cfg;
+  eos_throttler_get_config(&cfg);
+  snprintf(g_wasm_throttle_buf, sizeof(g_wasm_throttle_buf),
+    "{\"cpuFreqMhz\":%u,\"fpuEnabled\":%s,\"icacheEnabled\":%s,\"dcacheEnabled\":%s,"
+    "\"flashReadSpeedKbps\":%u,\"flashWriteSpeedKbps\":%u,\"flashEraseSectorMs\":%u,"
+    "\"maxRamKb\":%u,\"maxStackKb\":%u,\"tickRateHz\":%u,"
+    "\"cpuLimitEnabled\":%s,\"flashLimitEnabled\":%s,"
+    "\"memoryLimitEnabled\":%s,\"systemLimitEnabled\":%s}",
+    cfg.cpu_freq_mhz,
+    cfg.fpu_enabled ? "true" : "false",
+    cfg.icache_enabled ? "true" : "false",
+    cfg.dcache_enabled ? "true" : "false",
+    cfg.flash_read_speed_kbps,
+    cfg.flash_write_speed_kbps,
+    cfg.flash_erase_sector_ms,
+    cfg.max_ram_kb,
+    cfg.max_stack_kb,
+    cfg.tick_rate_hz,
+    cfg.cpu_limit_enabled ? "true" : "false",
+    cfg.flash_limit_enabled ? "true" : "false",
+    cfg.memory_limit_enabled ? "true" : "false",
+    cfg.system_limit_enabled ? "true" : "false");
+  return g_wasm_throttle_buf;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *eos_wasm_throttler_get_stats(void)
+{
+  eos_throttler_stats_t st;
+  eos_throttler_get_stats(&st);
+  snprintf(g_wasm_throttle_buf2, sizeof(g_wasm_throttle_buf2),
+    "{\"slowdown\":%.2f,\"tickRateHz\":%.1f,\"totalTicks\":%llu,"
+    "\"cpuDelayUs\":%llu,\"flashReadBytes\":%llu,\"flashWriteBytes\":%llu,"
+    "\"ramUsageKb\":%u,\"ramPeakKb\":%u,\"ramAllocFails\":%u}",
+    st.effective_slowdown,
+    st.actual_tick_rate_hz,
+    (unsigned long long)st.total_ticks,
+    (unsigned long long)st.cpu_delay_us,
+    (unsigned long long)st.flash_read_bytes,
+    (unsigned long long)st.flash_write_bytes,
+    st.current_ram_usage_kb,
+    st.peak_ram_usage_kb,
+    st.ram_alloc_failures);
+  return g_wasm_throttle_buf2;
+}
+
+EMSCRIPTEN_KEEPALIVE int eos_wasm_throttler_set_config(const char *json)
+{
+  if (!json || !json[0]) return 0;
+  eos_throttler_config_t cfg;
+  eos_throttler_get_config(&cfg);
+
+  /* Quick manual parse for key fields */
+  const char *p;
+  long v;
+
+  p = strstr(json, "\"cpuFreqMhz\":");
+  if (p) { v = strtol(p + 14, NULL, 10); if (v > 0) cfg.cpu_freq_mhz = (uint32_t)v; }
+
+  p = strstr(json, "\"fpuEnabled\":");
+  if (p) cfg.fpu_enabled = (strncmp(p + 14, "true", 4) == 0);
+
+  p = strstr(json, "\"icacheEnabled\":");
+  if (p) cfg.icache_enabled = (strncmp(p + 17, "true", 4) == 0);
+
+  p = strstr(json, "\"dcacheEnabled\":");
+  if (p) cfg.dcache_enabled = (strncmp(p + 17, "true", 4) == 0);
+
+  p = strstr(json, "\"flashReadSpeedKbps\":");
+  if (p) { v = strtol(p + 21, NULL, 10); if (v > 0) cfg.flash_read_speed_kbps = (uint32_t)v; }
+
+  p = strstr(json, "\"flashWriteSpeedKbps\":");
+  if (p) { v = strtol(p + 22, NULL, 10); if (v > 0) cfg.flash_write_speed_kbps = (uint32_t)v; }
+
+  p = strstr(json, "\"flashEraseSectorMs\":");
+  if (p) { v = strtol(p + 21, NULL, 10); if (v > 0) cfg.flash_erase_sector_ms = (uint32_t)v; }
+
+  p = strstr(json, "\"maxRamKb\":");
+  if (p) { v = strtol(p + 11, NULL, 10); if (v > 0) cfg.max_ram_kb = (uint32_t)v; }
+
+  p = strstr(json, "\"maxStackKb\":");
+  if (p) { v = strtol(p + 13, NULL, 10); if (v > 0) cfg.max_stack_kb = (uint32_t)v; }
+
+  p = strstr(json, "\"tickRateHz\":");
+  if (p) { v = strtol(p + 13, NULL, 10); if (v > 0) cfg.tick_rate_hz = (uint32_t)v; }
+
+  p = strstr(json, "\"cpuLimitEnabled\":");
+  if (p) cfg.cpu_limit_enabled = (strncmp(p + 18, "true", 4) == 0);
+
+  p = strstr(json, "\"flashLimitEnabled\":");
+  if (p) cfg.flash_limit_enabled = (strncmp(p + 20, "true", 4) == 0);
+
+  p = strstr(json, "\"memoryLimitEnabled\":");
+  if (p) cfg.memory_limit_enabled = (strncmp(p + 21, "true", 4) == 0);
+
+  p = strstr(json, "\"systemLimitEnabled\":");
+  if (p) cfg.system_limit_enabled = (strncmp(p + 21, "true", 4) == 0);
+
+  eos_throttler_set_config(&cfg);
+  return 1;
 }
 #endif
 
@@ -528,25 +698,33 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif
 
   lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
-  // lv_indev_set_display(mousewheel, disp);
-  // lv_indev_set_group(mousewheel, lv_group_get_default());
   lv_indev_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
   lv_indev_t *kb = lv_sdl_keyboard_create();
   lv_indev_set_display(kb, disp);
   lv_indev_set_group(kb, lv_group_get_default());
 
+  g_sdl_disp = disp;
+
   lv_obj_t *simulator_container = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(simulator_container);
   lv_obj_set_size(simulator_container, SIMULATOR_CONTAINER_WIDTH, SIMULATOR_CONTAINER_HEIGHT);
   lv_obj_remove_flag(simulator_container, LV_OBJ_FLAG_SCROLLABLE);
+  g_sim_container = simulator_container;
+
+  /* Inner container for all watch elements */
+  g_watch_box = lv_obj_create(simulator_container);
+  lv_obj_remove_style_all(g_watch_box);
+  lv_obj_set_size(g_watch_box, SIMULATOR_CONTAINER_WIDTH, SIMULATOR_CONTAINER_HEIGHT);
+  lv_obj_remove_flag(g_watch_box, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_center(g_watch_box);
 
   const uint16_t frame_width = 20;
   const uint16_t frame_outline_width = 10;
   const uint16_t watch_frame_width = EOS_DISPLAY_WIDTH + (frame_width) * 2;
   const uint16_t watch_frame_height = EOS_DISPLAY_HEIGHT + (frame_width) * 2;
 
-  lv_obj_t *watch_frame = lv_obj_create(simulator_container);
+  lv_obj_t *watch_frame = lv_obj_create(g_watch_box);
   lv_obj_remove_style_all(watch_frame);
   lv_obj_set_size(watch_frame, watch_frame_width, watch_frame_height);
   lv_obj_center(watch_frame);
@@ -558,7 +736,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
   lv_obj_set_style_outline_width(watch_frame, frame_outline_width, 0);
   lv_obj_set_style_outline_pad(watch_frame, -2, 0);
 
-  lv_obj_t *vd_container = lv_obj_create(simulator_container);
+  lv_obj_t *vd_container = lv_obj_create(g_watch_box);
   lv_obj_remove_style_all(vd_container);
   lv_obj_set_size(vd_container, EOS_DISPLAY_WIDTH, EOS_DISPLAY_HEIGHT);
   lv_obj_center(vd_container);
@@ -575,7 +753,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif /* LV_USE_PERF_MONITOR */
 
   /* Create brightness mask after virtual display (on top of vd) */
-  brightness_mask = lv_obj_create(simulator_container);
+  brightness_mask = lv_obj_create(g_watch_box);
   lv_obj_set_size(brightness_mask, EOS_DISPLAY_WIDTH, EOS_DISPLAY_HEIGHT);
   lv_obj_set_style_bg_color(brightness_mask, lv_color_black(), 0);
   lv_obj_set_style_border_width(brightness_mask, 0, 0);
@@ -584,7 +762,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
   lv_obj_set_style_radius(brightness_mask, EOS_DISPLAY_RADIUS, 0);
   lv_obj_center(brightness_mask);
 
-  lv_obj_t *crown = lv_imagebutton_create(simulator_container);
+  lv_obj_t *crown = lv_imagebutton_create(g_watch_box);
   lv_obj_set_pos(crown, CROWN_POS_X, CROWN_POS_Y);
   lv_imagebutton_set_src(crown, LV_IMAGEBUTTON_STATE_RELEASED, CROWN_SRC, CROWN_SRC, CROWN_SRC);
   lv_obj_set_size(crown, CROWN_WIDTH, CROWN_HEIGHT);
@@ -601,12 +779,25 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 
   lv_obj_add_style(crown, &style_pressed, LV_STATE_PRESSED);
 
-  lv_obj_t *side_btn = lv_imagebutton_create(simulator_container);
+  lv_obj_t *side_btn = lv_imagebutton_create(g_watch_box);
   lv_obj_set_pos(side_btn, SIDE_BUTTON_POS_X, SIDE_BUTTON_POS_Y);
   lv_obj_set_size(side_btn, SIDE_BUTTON_WIDTH, SIDE_BUTTON_HEIGHT);
   lv_imagebutton_set_src(side_btn, LV_IMAGEBUTTON_STATE_RELEASED, SIDE_BUTTON_SRC, SIDE_BUTTON_SRC, SIDE_BUTTON_SRC);
   lv_obj_add_style(side_btn, &style_pressed, LV_STATE_PRESSED);
   lv_obj_add_event_cb(side_btn, _side_button_clicked_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Debug toggle button on watch area top-right */
+  lv_obj_t *dbg_btn = lv_button_create(g_watch_box);
+  lv_obj_set_size(dbg_btn, 26, 26);
+  lv_obj_align(dbg_btn, LV_ALIGN_TOP_RIGHT, -6, 5);
+  lv_obj_set_style_bg_opa(dbg_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_width(dbg_btn, 0, 0);
+  lv_obj_set_style_border_width(dbg_btn, 0, 0);
+  lv_obj_t *dbg_lbl = lv_label_create(dbg_btn);
+  lv_label_set_text(dbg_lbl, LV_SYMBOL_SETTINGS);
+  lv_obj_set_style_text_color(dbg_lbl, lv_color_black(), 0);
+  lv_obj_center(dbg_lbl);
+  lv_obj_add_event_cb(dbg_btn, _debug_toggle_cb, LV_EVENT_CLICKED, NULL);
 
   return disp;
 }

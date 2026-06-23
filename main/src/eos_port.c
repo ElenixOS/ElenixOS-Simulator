@@ -22,6 +22,7 @@
 #include "eos_service_time.h"
 #endif
 #include "eos_config.h"
+#include "eos_throttler.h"
 #include "mac_api.h"
 #include "eos_service_sensor.h"
 
@@ -92,11 +93,13 @@ void eos_sem_give(eos_sem_t *sem)
 
 void *eos_malloc_core(size_t size)
 {
+    if (!eos_throttler_mem_try_alloc(size)) return NULL;
     return malloc(size);
 }
 
 void *eos_malloc_zeroed_core(size_t size)
 {
+    if (!eos_throttler_mem_try_alloc(size)) return NULL;
     return calloc(1, size);
 }
 
@@ -122,6 +125,7 @@ void eos_free_large(void *ptr)
 
 void eos_delay(uint32_t ms)
 {
+    ms = eos_throttler_adjust_delay(ms);
     usleep(ms * 1000);
 }
 
