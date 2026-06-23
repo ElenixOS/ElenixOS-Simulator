@@ -85,9 +85,45 @@ If your page is hosted elsewhere, replace with the full absolute URL:
 
 `https://<owner>.github.io/<repo>/wasm/latest/main.html`
 
-## Optional library
+## Build
 
-There are also FreeType and FFmpeg support. You can install these according to the followings:
+### Native (macOS / Linux / Windows)
+
+```bash
+pip install kconfiglib            # one-time dependency
+cmake -B build
+cmake --build build
+```
+
+### WASM
+
+```bash
+cmake -B build-wasm -D EOS_PLATFORM=WASM
+cmake --build build-wasm
+```
+
+### Kconfig Configuration
+
+```bash
+# Install dependency (one-time)
+pip install kconfiglib
+
+# Edit per-build overrides (saves to build/.config, NOT committed)
+make menuconfig
+
+# Edit project defaults (saves to main/src/config/defaults.conf, COMMITTED)
+make menuconfig-defaults
+
+# Reconfigure after changes
+cmake -B build && cmake --build build
+```
+
+Each build directory has its own `.config` (e.g. `build/.config`,
+`build-wasm/.config`), allowing Native and WASM to use completely
+different kernel settings.
+
+The generated header is written to `build/generated/eos_config_gen.h`
+and is automatically included during compilation.
 
 ### Linux
 

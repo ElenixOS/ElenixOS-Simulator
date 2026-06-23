@@ -96,6 +96,42 @@ include_directories(${PROJECT_SOURCE_DIR}/main/src/port/audio)
 include_directories(${PROJECT_SOURCE_DIR}/main/inc)
 include_directories(${PROJECT_SOURCE_DIR}/debugger_box)
 
+# Kconfig: merge project defaults → build-dir .config → generated header
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    set(KCONFIG_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/kconfig.py")
+    set(KCONFIG_DEFAULTS "${CMAKE_SOURCE_DIR}/main/src/config/defaults.conf")
+    set(KCONFIG_DIR  "${CMAKE_BINARY_DIR}")
+    set(KCONFIG_OUT  "${CMAKE_BINARY_DIR}/generated/eos_config_gen.h")
+
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
+    include_directories("${CMAKE_BINARY_DIR}/generated")
+
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${KCONFIG_SCRIPT} genconfig
+                ${KCONFIG_DIR} ${KCONFIG_OUT} --defaults ${KCONFIG_DEFAULTS}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE _kconfig_ret
+    )
+    if(NOT _kconfig_ret EQUAL 0)
+        message(WARNING "kconfig genconfig failed – using kernel defaults")
+    endif()
+
+    add_custom_target(menuconfig
+        COMMAND ${Python3_EXECUTABLE} ${KCONFIG_SCRIPT} menuconfig ${KCONFIG_DIR}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Launching Kconfig menuconfig for ${CMAKE_BINARY_DIR} ..."
+        USES_TERMINAL
+    )
+    add_custom_target(menuconfig-defaults
+        COMMAND ${Python3_EXECUTABLE} ${KCONFIG_SCRIPT} menuconfig
+                ${CMAKE_SOURCE_DIR}/main/src/config --config ${KCONFIG_DEFAULTS}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Editing project defaults: main/src/config/defaults.conf"
+        USES_TERMINAL
+    )
+endif()
+
 option(LV_USE_DRAW_SDL "Use SDL draw unit" OFF)
 option(LV_USE_LIBPNG "Use libpng to decode PNG" OFF)
 option(LV_USE_LIBJPEG_TURBO "Use libjpeg turbo to decode JPEG" OFF)

@@ -1,3 +1,7 @@
+# Kconfig artifacts under source tree
+main/src/config/.config
+main/src/config/*.old
+
 # Ignore build folder
 build/
 build-*/
