@@ -58,6 +58,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |

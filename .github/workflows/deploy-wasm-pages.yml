@@ -41,6 +41,9 @@ jobs:
           set -euo pipefail
           embuilder build sdl2
 
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
       - name: Configure WASM build
         run: emcmake cmake -S . -B build-wasm -DEOS_PLATFORM=WASM -DCMAKE_BUILD_TYPE=Release
 

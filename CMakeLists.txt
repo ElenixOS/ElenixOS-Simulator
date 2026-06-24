@@ -393,13 +393,13 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(lvgl PRIVATE
         -pedantic-errors
         -Wall
-        -Wclobbered
+        $<$<C_COMPILER_ID:GNU>:-Wclobbered>
         -Wdeprecated
         -Wdouble-promotion
         -Wempty-body
         -Wextra
         -Wformat-security
-        -Wmaybe-uninitialized
+        $<$<C_COMPILER_ID:GNU>:-Wmaybe-uninitialized>
         -Wpointer-arith
         -Wmultichar
         -Wno-pedantic
