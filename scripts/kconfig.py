@@ -55,9 +55,9 @@ def _quote(name: str, val) -> str:
 
 
 def _load_config_file(kconfig: Kconfig, path: str, label: str):
-    """Load a single config file with replace=False (lower priority wins)."""
+    """Load a single config file with replace=True (higher priority wins)."""
     if os.path.exists(path):
-        kconfig.load_config(path, replace=False)
+        kconfig.load_config(path, replace=True)
         print(f"  Loaded {label}: {path}")
     else:
         print(f"  ⚠ {label} not found: {path}")
@@ -78,10 +78,12 @@ def generate(kconfig: Kconfig, outpath: str):
     for sym in kconfig.unique_defined_syms:
         name = sym.name
         val = _symbol_value(sym)
+        lines.append(f"#ifndef {name}")
         if isinstance(val, int):
-            lines.append(f"#define CONFIG_{name} {val}")
+            lines.append(f"#define {name} {val}")
         else:
-            lines.append(f"#define CONFIG_{name} {_quote(name, val)}")
+            lines.append(f"#define {name} {_quote(name, val)}")
+        lines.append(f"#endif")
 
     lines.append("")
     lines.append("#endif /* EOS_CONFIG_GEN_H */")
@@ -135,6 +137,9 @@ def main():
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".config", delete=False) as tmp:
             tmppath = tmp.name
+        # Persist loaded config to the temp file so menuconfig shows saved
+        # values instead of Kconfig defaults.
+        kconfig.write_config(tmppath)
         os.environ["KCONFIG_CONFIG"] = tmppath
         _menuconfig_tui(kconfig)
         del os.environ["KCONFIG_CONFIG"]
@@ -164,10 +169,10 @@ def main():
             else:
                 i += 1
 
-        # Priority (lowest → highest):
-        #   1. Kconfig built-in defaults (from `default` statements)
-        #   2. Project defaults file (committed)
-        #   3. Build-dir .config (user overrides from menuconfig)
+        # Priority (each step uses replace=True, so last one wins):
+        #   1. Kconfig built-in defaults (lowest)
+        #   2. Project defaults file (committed, overrides Kconfig)
+        #   3. Build-dir .config (highest, user overrides from menuconfig)
         if defaults:
             _load_config_file(kconfig, defaults, "project defaults")
 
