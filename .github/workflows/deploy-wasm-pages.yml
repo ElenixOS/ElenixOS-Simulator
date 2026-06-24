@@ -32,9 +32,16 @@ jobs:
           submodules: recursive
 
       - name: Setup Emscripten SDK
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 4.0.11
+        run: |
+          set -euo pipefail
+          git clone https://github.com/emscripten-core/emsdk.git --depth 1
+          cd emsdk
+          ./emsdk install 4.0.11
+          ./emsdk activate 4.0.11
+          source ./emsdk_env.sh
+          echo "EMSDK=${EMSDK}" >> $GITHUB_ENV
+          echo "${EMSDK}" >> $GITHUB_PATH
+          echo "${EMSDK}/upstream/emscripten" >> $GITHUB_PATH
 
       - name: Prebuild Emscripten SDL2 cache
         run: |
