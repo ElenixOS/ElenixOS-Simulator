@@ -123,13 +123,7 @@ if(Python3_FOUND)
         COMMENT "Launching Kconfig menuconfig for ${CMAKE_BINARY_DIR} ..."
         USES_TERMINAL
     )
-    add_custom_target(menuconfig-defaults
-        COMMAND ${Python3_EXECUTABLE} ${KCONFIG_SCRIPT} menuconfig
-                ${CMAKE_SOURCE_DIR}/main/src/config --config ${KCONFIG_DEFAULTS}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Editing project defaults: main/src/config/defaults.conf"
-        USES_TERMINAL
-    )
+
 endif()
 
 option(LV_USE_DRAW_SDL "Use SDL draw unit" OFF)

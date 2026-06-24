@@ -90,8 +90,15 @@ def generate(kconfig: Kconfig, outpath: str):
     lines.append("")
 
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
+    new_content = "\n".join(lines) + "\n"
+    try:
+        with open(outpath) as f:
+            if f.read() == new_content:
+                return
+    except FileNotFoundError:
+        pass
     with open(outpath, "w") as f:
-        f.write("\n".join(lines) + "\n")
+        f.write(new_content)
 
     print(f"→ Generated {outpath} ({len(kconfig.unique_defined_syms)} symbols)")
 
