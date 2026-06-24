@@ -320,7 +320,7 @@ EMSCRIPTEN_KEEPALIVE int eos_wasm_launch_app_by_id(const char *app_id)
 
 EMSCRIPTEN_KEEPALIVE int eos_wasm_reload_current_script(void)
 {
-  return script_engine_reload_current_script() == SE_OK ? 1 : 0;
+  return script_engine_reload_current_script() == EOS_OK ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int eos_wasm_back_to_watchface(void)
