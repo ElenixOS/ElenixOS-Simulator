@@ -1,0 +1,10 @@
+{
+    "id": "com.elenixos.test",
+    "name": "LVGL API Test Suite",
+    "version": "1.0.0",
+    "author": "ElenixOS",
+    "description": "Unit test suite for all LVGL JS API bindings",
+    "minApiLevel": 0,
+    "targetApiLevel": 0,
+    "permissions": ["storage", "sensor"]
+}
