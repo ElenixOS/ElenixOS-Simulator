@@ -1,5 +1,5 @@
 let view = eos.view.active();
-
+bad_func();
 let currentActivity = eos.activity.current();
 eos.activity.setAppHeaderVisible(currentActivity, false);
 

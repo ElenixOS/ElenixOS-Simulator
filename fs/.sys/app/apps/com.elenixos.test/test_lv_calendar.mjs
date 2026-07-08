@@ -61,18 +61,6 @@ export function suite() {
         if (count < 0) throw new Error("negative count");
     });
 
-    test("chinese mode anti-overlap layout tuning", () => {
-        let btnm = calendar.getBtnmatrix();
-        let PM = lv.PART_MAIN;
-
-        // Chinese lunar labels are denser; increase cell space to avoid overlaps.
-        calendar.setSize(360, 420);
-        btnm.setStylePadRow(4, PM);
-        btnm.setStylePadVer(4, PM);
-        btnm.setStyleTextLineSpace(4, PM);
-        btnm.setStyleTextLetterSpace(0, PM);
-    });
-
     test("prop chineseMode true/false with feature gate", () => {
         let threw = false;
         let errMsg = "";

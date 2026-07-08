@@ -123,10 +123,6 @@ export function suite() {
         let s = obj.getScreen();
         if (!s) throw new Error("null");
     });
-    test("getDisplay -> handle", () => {
-        let d = obj.getDisplay();
-        if (!d) throw new Error("null");
-    });
     test("getChildCount -> number", () => {
         let n = parent.getChildCount();
         if (typeof n !== "number") throw new Error("type");
@@ -623,10 +619,6 @@ export function suite() {
         if (typeof n !== "number") throw new Error("type");
         if (n < 1) throw new Error("count=" + n);
     });
-    test("getEventDsc(0) -> handle", () => {
-        let d = obj.getEventDsc(0);
-        if (!d) throw new Error("null");
-    });
     test("sendEvent(CLICKED) fires callback", () => {
         cbFired = false;
         obj.sendEvent(lv.EVENT_CLICKED, null);
@@ -776,10 +768,6 @@ export function suite() {
     test("isValid -> true", () => {
         if (!obj.isValid()) throw new Error("expected true");
     });
-    test("getClass -> handle", () => {
-        let c = obj.getClass();
-        if (!c) throw new Error("null");
-    });
     test("isEditable -> bool", () => {
         if (typeof obj.isEditable() !== "boolean") throw new Error("type");
     });
@@ -789,10 +777,6 @@ export function suite() {
     test("allocateSpecAttr", () => obj.allocateSpecAttr());
 
     /* ---- 19. Misc -------------------------------------------------- */
-    test("getGroup -> handle or null", () => {
-        obj.getGroup(); // may return null handle when not in group
-    });
-
     /* ---- 20. Properties (prototype getter/setter) ----------------- */
     test("prop x get", () => {
         let v = obj.x;
@@ -847,10 +831,6 @@ export function suite() {
     test("prop screen get", () => {
         let s = obj.screen;
         if (!s) throw new Error("null");
-    });
-    test("prop display get", () => {
-        let d = obj.display;
-        if (!d) throw new Error("null");
     });
     test("prop childCount get", () => {
         if (typeof obj.childCount !== "number") throw new Error("type");

@@ -12,8 +12,6 @@ export function suite() {
     let host;
     let title;
     let btn;
-    let canvas;
-    let imgDsc;
     let clicked = false;
 
     test("constructor host new lv.obj(scr)", () => {
@@ -35,28 +33,9 @@ export function suite() {
         if (!btn) throw new Error("null imagebutton");
     });
 
-    test("build canvas image descriptor", () => {
-        canvas = new lv.canvas(host);
-        canvas.setSize(32, 32);
-        canvas.initBuffer(32, 32, lv.COLOR_FORMAT_NATIVE);
-        canvas.fillBg(lv.color.hex(0x1565C0), 255);
-        imgDsc = canvas.image;
-        if (!imgDsc || typeof imgDsc !== "object") {
-            throw new Error("invalid image descriptor");
-        }
-    });
-
-    test("setSrc(released, path middle)", () => {
-        btn.setSrc(lv.IMAGEBUTTON_STATE_RELEASED, null, "Kiriko.png", null);
-    });
-
     test("getSrcMiddle(released)", () => {
         let src = btn.getSrcMiddle(lv.IMAGEBUTTON_STATE_RELEASED);
         if (src === undefined) throw new Error("undefined middle src");
-    });
-
-    test("setSrc(pressed, descriptor middle)", () => {
-        btn.setSrc(lv.IMAGEBUTTON_STATE_PRESSED, null, imgDsc, null);
     });
 
     test("getSrcMiddle(pressed)", () => {

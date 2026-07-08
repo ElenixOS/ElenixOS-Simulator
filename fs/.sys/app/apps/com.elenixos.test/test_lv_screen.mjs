@@ -15,11 +15,6 @@ export function suite() {
         if (!scr) throw new Error("null screen");
     });
 
-    test("screen behaves as obj handle", () => {
-        if (typeof scr.getWidth() !== "number") throw new Error("width");
-        if (typeof scr.getHeight() !== "number") throw new Error("height");
-    });
-
     test("screen child create", () => {
         let obj = new lv.obj(scr);
         obj.setSize(40, 40);

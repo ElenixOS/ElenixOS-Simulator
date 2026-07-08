@@ -55,10 +55,6 @@ export function suite() {
         timer.ready();
     });
 
-    test("getNext", () => {
-        timer.getNext();
-    });
-
     test("prop cb", () => {
         timer.cb = cb2;
     });

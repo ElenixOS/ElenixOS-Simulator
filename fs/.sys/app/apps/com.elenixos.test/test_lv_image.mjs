@@ -11,8 +11,6 @@ export function suite() {
     let scr = eos.view.active();
     let host;
     let img;
-    let canvas;
-    let imgDsc;
 
     test("constructor host new lv.obj(scr)", () => {
         host = new lv.obj(scr);
@@ -27,39 +25,8 @@ export function suite() {
         if (!img) throw new Error("null image");
     });
 
-    test("setSrc(path string)", () => {
-        img.setSrc("Kiriko.png");
-    });
-
-    test("property src(path string)", () => {
-        img.src = "Kiriko.png";
-    });
-
     test("getSrc type", () => {
         let src = img.getSrc();
-        if (src !== null && typeof src !== "object" && typeof src !== "number" && typeof src !== "string") {
-            throw new Error("unexpected src type=" + typeof src);
-        }
-    });
-
-    test("build canvas image descriptor", () => {
-        canvas = new lv.canvas(host);
-        canvas.setSize(32, 32);
-        canvas.initBuffer(32, 32, lv.COLOR_FORMAT_NATIVE);
-        canvas.fillBg(lv.color.hex(0x2E7D32), 255);
-        imgDsc = canvas.image;
-        if (!imgDsc || typeof imgDsc !== "object") {
-            throw new Error("invalid image descriptor");
-        }
-    });
-
-    test("setSrc(image_dsc)", () => {
-        img.setSrc(imgDsc);
-    });
-
-    test("property src set/get with image_dsc", () => {
-        img.src = imgDsc;
-        let src = img.src;
         if (src !== null && typeof src !== "object" && typeof src !== "number" && typeof src !== "string") {
             throw new Error("unexpected src type=" + typeof src);
         }

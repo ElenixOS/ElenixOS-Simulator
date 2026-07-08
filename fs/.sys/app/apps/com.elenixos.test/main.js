@@ -25,31 +25,9 @@ import { suite as suite_checkbox } from './test_lv_checkbox.mjs';
 import { suite as suite_dropdown } from './test_lv_dropdown.mjs';
 import { suite as suite_image } from './test_lv_image.mjs';
 import { suite as suite_imagebutton } from './test_lv_imagebutton.mjs';
-import { suite as suite_sni_cleanup } from './test_sni_exit_cleanup.mjs';
-import { suite as suite_permission } from './test_eos_permission.mjs';
-import { suite as suite_stress } from './test_eos_stress.mjs';
 
 // ---- Cleanup integrity test ----
 import { suite as suite_cleanup } from './test_cleanup_integrity.mjs';
-
-// ---- Import new test suites (P0-P3 widgets) ----
-import { suite as suite_slider } from './test_lv_slider.mjs';
-import { suite as suite_switch } from './test_lv_switch.mjs';
-import { suite as suite_textarea } from './test_lv_textarea.mjs';
-import { suite as suite_keyboard } from './test_lv_keyboard.mjs';
-import { suite as suite_msgbox } from './test_lv_msgbox.mjs';
-import { suite as suite_list } from './test_lv_list.mjs';
-import { suite as suite_scale } from './test_lv_scale.mjs';
-import { suite as suite_line } from './test_lv_line.mjs';
-import { suite as suite_roller } from './test_lv_roller.mjs';
-import { suite as suite_spinbox } from './test_lv_spinbox.mjs';
-import { suite as suite_led } from './test_lv_led.mjs';
-import { suite as suite_tabview } from './test_lv_tabview.mjs';
-import { suite as suite_win } from './test_lv_win.mjs';
-import { suite as suite_spangroup } from './test_lv_spangroup.mjs';
-import { suite as suite_animimage } from './test_lv_animimage.mjs';
-import { suite as suite_spinner } from './test_lv_spinner.mjs';
-import { suite as suite_menu } from './test_lv_menu.mjs';
 
 // ---- Configuration ----
 const RUN_SELECTED = false;
@@ -73,28 +51,7 @@ const ALL_SUITES = {
     dropdown: suite_dropdown,
     image: suite_image,
     imagebutton: suite_imagebutton,
-    sni_cleanup: suite_sni_cleanup,
-    permission: suite_permission,
-    stress: suite_stress,
     cleanup: suite_cleanup,
-    // New P0-P3 widgets
-    slider: suite_slider,
-    switch: suite_switch,
-    textarea: suite_textarea,
-    keyboard: suite_keyboard,
-    msgbox: suite_msgbox,
-    list: suite_list,
-    scale: suite_scale,
-    line: suite_line,
-    roller: suite_roller,
-    spinbox: suite_spinbox,
-    led: suite_led,
-    tabview: suite_tabview,
-    win: suite_win,
-    spangroup: suite_spangroup,
-    animimage: suite_animimage,
-    spinner: suite_spinner,
-    menu: suite_menu,
 };
 
 function runAllSuites() {

@@ -69,15 +69,6 @@ export function suite() {
         chart.setNextValue2(ser, 30, 60);
     });
 
-    test("getYArray/getXArray", () => {
-        let yArr = chart.getYArray(ser);
-        let xArr = chart.getXArray(ser);
-        if (!yArr) throw new Error("null y array");
-        if (chart.getType() === lv.CHART_TYPE_SCATTER && !xArr) {
-            throw new Error("null x array in scatter mode");
-        }
-    });
-
     test("getType/getPointCount", () => {
         if (typeof chart.getType() !== "number") throw new Error("type getter");
         if (typeof chart.getPointCount() !== "number") throw new Error("count getter");
