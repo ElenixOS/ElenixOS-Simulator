@@ -55,7 +55,7 @@ static Float32 get_channel_volume(AudioDeviceID deviceID, UInt32 channel)
     return volume;
 }
 
-// 设置指定通道音量
+// Set volume for specified channel
 static void set_channel_volume(AudioDeviceID deviceID, UInt32 channel, Float32 volume)
 {
     UInt32 size = sizeof(volume);

@@ -24,7 +24,7 @@ const uint8_t mouse_cursor_icon_map[] = {
 
 };
 
-lv_img_dsc_t mouse_cursor_icon = {
+lv_image_dsc_t mouse_cursor_icon = {
     .header.magic = LV_IMAGE_HEADER_MAGIC,
     .header.w = 14,
     .header.h = 20,
