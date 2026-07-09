@@ -106,6 +106,21 @@ jobs:
           AWS_REGION: auto
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
+          set -euo pipefail
           aws s3 sync _site s3://elenixos-wasm \
             --endpoint-url "$R2_ENDPOINT" \
             --delete
+          aws s3 cp _site s3://elenixos-wasm \
+            --endpoint-url "$R2_ENDPOINT" \
+            --recursive \
+            --exclude '*' \
+            --include '*.wasm' \
+            --content-type 'application/wasm' \
+            --metadata-directive REPLACE
+          aws s3 cp _site s3://elenixos-wasm \
+            --endpoint-url "$R2_ENDPOINT" \
+            --recursive \
+            --exclude '*' \
+            --include '*.data' \
+            --content-type 'application/octet-stream' \
+            --metadata-directive REPLACE
