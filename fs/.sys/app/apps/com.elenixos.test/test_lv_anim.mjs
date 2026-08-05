@@ -4,11 +4,11 @@
  * Log rules: no Chinese characters. Each entry is [PASS] or [FAIL].
  */
 
-import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite } from './framework.mjs';
+import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite, getTestView } from './framework.mjs';
 
 export function suite() {
     runSuite('anim', () => {
-    let scr = eos.view.active();
+    let scr = getTestView();
     let target = new lv.obj(scr);
     target.setSize(40, 40);
     target.align(lv.ALIGN_TOP_LEFT, 8, 8);

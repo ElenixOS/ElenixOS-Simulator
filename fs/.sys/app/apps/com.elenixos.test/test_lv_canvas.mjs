@@ -4,7 +4,7 @@
  * Log rules: no Chinese characters. Each entry is [PASS] or [FAIL].
  */
 
-import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite } from './framework.mjs';
+import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite, getTestView } from './framework.mjs';
 
 export function suite() {
     runSuite('canvas', () => {
@@ -12,7 +12,7 @@ export function suite() {
     // Set to true only when explicitly testing release logic.
     const AUTO_FREE_BUFFER = false;
 
-    let scr = eos.view.active();
+    let scr = getTestView();
     let container;
     let canvas;
 

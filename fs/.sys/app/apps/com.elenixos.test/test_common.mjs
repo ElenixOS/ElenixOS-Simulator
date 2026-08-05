@@ -10,6 +10,9 @@
  *   }
  */
 
+let _pass = 0;
+let _fail = 0;
+
 function $log(msg) {
     try { eos.console.log("[js-test] " + msg); } catch (e) { }
 }
@@ -17,8 +20,10 @@ function $log(msg) {
 function $t(name, fn) {
     try {
         fn();
+        _pass++;
         $log("[PASS] " + name);
     } catch (e) {
+        _fail++;
         $log("[FAIL] " + name + " => " + e);
     }
 }
@@ -30,6 +35,8 @@ function $report(module_name) {
 }
 
 function $reset() {
+    _pass = 0;
+    _fail = 0;
 }
 
 function $get() {

@@ -11,7 +11,7 @@
  *   4. Create new objects — if TLFS corruption occurred, this will crash
  */
 
-import { test, log, assertOk, assertNotNull, runSuite } from './framework.mjs';
+import { test, log, assertOk, assertNotNull, runSuite, getTestView } from './framework.mjs';
 
 function _forceError() {
     /* Force a ReferenceError by accessing an undefined variable.
@@ -21,7 +21,7 @@ function _forceError() {
 
 export function suite() {
     runSuite('cleanup', () => {
-    let scr = eos.view.active();
+    let scr = getTestView();
 
     /* Phase 1: Create many nested objects */
     let containers = [];
@@ -54,7 +54,7 @@ export function suite() {
      * IF cleanup failed, TLFS assertion will fire here. */
     log('Phase 3: verifying recovery by creating new objects');
 
-    let newScr = eos.view.active();
+    let newScr = getTestView();
     assertNotNull(newScr, 'screen should be accessible after recovery');
 
     /* Try creating objects in different configurations to stress the allocator */
