@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(lvgl C CXX)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Default build type" FORCE)
+endif()
+
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
@@ -191,9 +195,11 @@ endif()
 set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/main.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_port.c
-    ${PROJECT_SOURCE_DIR}/main/src/jerry_port.c
+
     ${PROJECT_SOURCE_DIR}/main/src/mac_api.c
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_debug_anim.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_debug_anim_panel.c
     ${PROJECT_SOURCE_DIR}/main/src/port/vibrator/eos_port_vibrator.c
     ${PROJECT_SOURCE_DIR}/main/src/port/display/eos_port_display.c
     ${PROJECT_SOURCE_DIR}/main/src/port/power/eos_port_power.c

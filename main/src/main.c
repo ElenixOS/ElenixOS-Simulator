@@ -19,6 +19,9 @@
 #include <emscripten/html5.h>
 #include <emscripten/emscripten.h>
 #endif
+#ifndef __EMSCRIPTEN__
+#include <SDL2/SDL.h>
+#endif
 #include "lvgl/lvgl.h"
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
@@ -28,6 +31,8 @@
 #include "eos_app_list.h"
 #include "eos_activity.h"
 #include "eos_service_storage.h"
+#include "eos_debug_anim.h"
+#include "eos_debug_anim_panel.h"
 #include "eos_fs_port.h"
 #include "eos_mem.h"
 #include "script_engine_core.h"
@@ -46,12 +51,15 @@
 
 #define SIMULATOR_CONTAINER_WIDTH 500
 #define SIMULATOR_CONTAINER_HEIGHT 520
+#define DEBUG_PANEL_WIDTH 360
 #ifdef __EMSCRIPTEN__
 #define WINDOW_WIDTH EOS_DISPLAY_WIDTH
 #define WINDOW_HEIGHT EOS_DISPLAY_HEIGHT
 #else
-#define WINDOW_WIDTH SIMULATOR_CONTAINER_WIDTH
-#define WINDOW_HEIGHT SIMULATOR_CONTAINER_HEIGHT
+#define WINDOW_WIDTH_COLLAPSED SIMULATOR_CONTAINER_WIDTH
+#define WINDOW_WIDTH_EXPANDED  (SIMULATOR_CONTAINER_WIDTH + DEBUG_PANEL_WIDTH + 4)
+#define WINDOW_WIDTH           WINDOW_WIDTH_COLLAPSED
+#define WINDOW_HEIGHT          SIMULATOR_CONTAINER_HEIGHT
 #endif
 #define LV_USE_MOUSE_CURSOR_IMAGE 0
 
@@ -109,7 +117,9 @@ static void _log_file_listener(eos_log_level_t level, const char *buf, size_t le
   }
 
   fprintf(fp, "[%s] %s\n", _log_level_to_str(level), buf);
-  fflush(fp);
+  /* setvbuf(..., _IOLBF, 0) at init time provides line-buffered
+   * automatic flush on newline — explicit fflush is redundant and
+   * makes every log line a synchronous disk write. */
 }
 
 static void _copy_file(FILE *src, FILE *dst)
@@ -271,6 +281,27 @@ int main(int argc, char **argv)
   eos_port_audio_init();
 
   eos_init();
+
+  /* Debug animation tuner (simulator only, no-op in production) */
+  eos_debug_anim_init();
+
+#ifndef __EMSCRIPTEN__
+#if EOS_COMPILE_MODE == DEBUG
+  /* -------- Debug: simulate slow app loading --------
+   * Set I/O and JS eval delays (ms).  Set to 0 to disable.
+   *   _DEBUG_LOADING_IO_DELAY_MS   — simulates slow Flash read of main.js
+   *   _DEBUG_LOADING_EVAL_DELAY_MS — simulates slow JerryScript parsing
+   * -------------------------------------------------- */
+#define _DEBUG_LOADING_IO_DELAY_MS   0
+#define _DEBUG_LOADING_EVAL_DELAY_MS 0
+
+  if (_DEBUG_LOADING_IO_DELAY_MS > 0 || _DEBUG_LOADING_EVAL_DELAY_MS > 0)
+  {
+    eos_app_list_set_debug_loading_delay(_DEBUG_LOADING_IO_DELAY_MS, _DEBUG_LOADING_EVAL_DELAY_MS);
+  }
+#endif /* EOS_COMPILE_MODE == DEBUG */
+#endif /* !__EMSCRIPTEN__ */
+
 #ifdef __EMSCRIPTEN__
   emscripten_request_animation_frame_loop(eos_main_loop_frame, NULL);
 #else
@@ -504,13 +535,85 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
   return disp;
 }
 #else
+/* Debug panel toggle state (file scope, accessed by callback) */
+static bool          _dbg_expanded   = false;
+static lv_obj_t     *_dbg_container  = NULL;
+static lv_obj_t     *_dbg_btn        = NULL;
+static lv_obj_t     *_dbg_btn_lbl    = NULL;
+static SDL_Window   *_dbg_sdl_win    = NULL;
+static lv_display_t *_dbg_sdl_disp   = NULL;
+static uint32_t      _dbg_last_toggle_ms = 0;
+
+static void _toggle_debug_cb(lv_event_t *e)
+{
+  /* Debounce: ignore clicks within 300ms to prevent rapid
+   * resize from racing with SDL event processing.  Each resize
+   * generates EXPOSED events that call window_update(), which
+   * must see a valid fb_act pointer.  Rapid toggling causes
+   * texture_resize() to free the old framebuffer while a
+   * queued EXPOSED event still references it. */
+  uint32_t now = SDL_GetTicks();
+  if(now - _dbg_last_toggle_ms < 300) {
+    return;
+  }
+  _dbg_last_toggle_ms = now;
+
+  _dbg_expanded = !_dbg_expanded;
+  lv_obj_t *container = (lv_obj_t *)lv_event_get_user_data(e);
+
+  int new_w = _dbg_expanded ? WINDOW_WIDTH_EXPANDED : WINDOW_WIDTH_COLLAPSED;
+
+  if (_dbg_expanded) {
+    lv_obj_remove_flag(container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(container);
+  } else {
+    lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (_dbg_sdl_win && _dbg_sdl_disp) {
+    /* Resize the SDL window first (queues RESIZED/EXPOSED events
+     * but does NOT touch LVGL framebuffers). */
+    SDL_SetWindowSize(_dbg_sdl_win, new_w, WINDOW_HEIGHT);
+
+    /* Sync the LVGL display resolution immediately.
+     * res_chg_event_cb calls SDL_SetWindowSize again (same size → no-op →
+     * no nested EXPOSED on macOS), then texture_resize reallocates the
+     * framebuffer to match the new window.  Order is critical: window
+     * must be resized BEFORE the LVGL resolution change. */
+    lv_display_set_resolution(_dbg_sdl_disp, new_w, WINDOW_HEIGHT);
+
+    /* Force an immediate redraw.  texture_resize() above freed
+     * the old framebuffer, but dsc->fb_act still points to it (it is
+     * only updated inside flush_cb).  lv_refr_now() runs the full render
+     * cycle synchronously: flush_cb copies the new frame into fb_act,
+     * then window_update() calls SDL_UpdateTexture with a valid pointer.
+     * Any queued EXPOSED events processed later by sdl_event_handler
+     * will now see the correct fb_act. */
+    lv_refr_now(_dbg_sdl_disp);
+  }
+}
+
 static lv_display_t *hal_init(int32_t w, int32_t h)
 {
   lv_group_set_default(lv_group_create());
 
   lv_display_t *disp = lv_sdl_window_create(w, h);
-  lv_sdl_window_set_resizeable(disp, false);
+  lv_sdl_window_set_resizeable(disp, true);
   lv_sdl_window_set_title(disp, "ElenixOS Simulator");
+
+  /* Save SDL display and window for the debug-panel toggle */
+  _dbg_sdl_disp = disp;
+  {
+    SDL_Renderer *r = (SDL_Renderer *)lv_sdl_window_get_renderer(disp);
+    _dbg_sdl_win = SDL_RenderGetWindow(r);
+  }
+
+  /* Set minimum window size to prevent unusably small layouts.
+   * Manual resize goes through the SDL event handler (safe context),
+   * not through an LVGL event callback, so texture_resize is safe. */
+  SDL_SetWindowMinimumSize(_dbg_sdl_win,
+                           SIMULATOR_CONTAINER_WIDTH / 2,
+                           SIMULATOR_CONTAINER_HEIGHT / 2);
 
   lv_obj_set_style_bg_color(lv_screen_active(), lv_color_white(), 0);
 
@@ -536,10 +639,45 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
   lv_indev_set_display(kb, disp);
   lv_indev_set_group(kb, lv_group_get_default());
 
+  /* Prevent horizontal scrolling on the main screen */
+  lv_obj_set_scroll_dir(lv_screen_active(), LV_DIR_VER);
+
+  /* Simulator container (left-aligned so it stays put when debug panel expands) */
   lv_obj_t *simulator_container = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(simulator_container);
   lv_obj_set_size(simulator_container, SIMULATOR_CONTAINER_WIDTH, SIMULATOR_CONTAINER_HEIGHT);
+  lv_obj_align(simulator_container, LV_ALIGN_LEFT_MID, 0, 0);
   lv_obj_remove_flag(simulator_container, LV_OBJ_FLAG_SCROLLABLE);
+
+  /* Debug panel container (right of simulator, hidden by default) */
+  _dbg_container = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(_dbg_container);
+  lv_obj_set_size(_dbg_container, DEBUG_PANEL_WIDTH, SIMULATOR_CONTAINER_HEIGHT);
+  lv_obj_align(_dbg_container, LV_ALIGN_LEFT_MID, SIMULATOR_CONTAINER_WIDTH + 4, 0);
+  lv_obj_remove_flag(_dbg_container, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_bg_color(_dbg_container, lv_color_hex(0x1a1a2e), 0);
+  lv_obj_set_style_border_width(_dbg_container, 0, 0);
+  lv_obj_add_flag(_dbg_container, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(_dbg_container);
+
+  eos_debug_anim_panel_create(_dbg_container);
+
+  /* Toggle button (top-right of simulator container) */
+  _dbg_btn = lv_button_create(simulator_container);
+  lv_obj_set_size(_dbg_btn, 28, 28);
+  lv_obj_align(_dbg_btn, LV_ALIGN_TOP_RIGHT, -6, 6);
+  lv_obj_set_style_radius(_dbg_btn, 6, 0);
+  lv_obj_set_style_bg_opa(_dbg_btn, LV_OPA_50, 0);
+  lv_obj_set_style_bg_color(_dbg_btn, lv_color_hex(0x444466), 0);
+  lv_obj_set_style_border_width(_dbg_btn, 0, 0);
+  lv_obj_set_style_shadow_width(_dbg_btn, 0, 0);
+  _dbg_btn_lbl = lv_label_create(_dbg_btn);
+  lv_label_set_text(_dbg_btn_lbl, LV_SYMBOL_SETTINGS);
+  lv_obj_set_style_text_font(_dbg_btn_lbl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_color(_dbg_btn_lbl, lv_color_hex(0xccccdd), 0);
+  lv_obj_center(_dbg_btn_lbl);
+
+  lv_obj_add_event_cb(_dbg_btn, _toggle_debug_cb, LV_EVENT_CLICKED, _dbg_container);
 
   const uint16_t frame_width = 20;
   const uint16_t frame_outline_width = 10;
