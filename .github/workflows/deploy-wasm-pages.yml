@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          LATEST_TAG=$(gh api repos/ElenixOS/ElenixOS/releases/latest --jq '.tag_name')
+          LATEST_TAG=$(gh api repos/ElenixOS/ElenixOS/releases --jq '.[0].tag_name')
           echo "Latest ElenixOS release: ${LATEST_TAG}"
           cd ElenixOS
           git fetch origin tag "${LATEST_TAG}" --no-tags
