@@ -1,0 +1,10 @@
+{
+    "id":"com.elenixos.demowidgets",
+    "name":"Widgets Demo",
+    "version":"1.0.0",
+    "author":"Sab1e",
+    "description":"Showcase of watchface widgets",
+    "minApiLevel":0,
+    "targetApiLevel":0,
+    "permissions":[]
+}

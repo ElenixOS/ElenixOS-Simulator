@@ -456,7 +456,11 @@ void eos_port_sensor_init(void) {
     eos_dev_sensor_register("sim_gyro",  EOS_SENSOR_TYPE_GYRO,  &_generic_ops);
     eos_dev_sensor_register("sim_mag",   EOS_SENSOR_TYPE_MAG,   &_generic_ops);
     eos_dev_sensor_register("sim_hr",    EOS_SENSOR_TYPE_HR,    &_generic_ops);
+    eos_dev_sensor_register("sim_spo2",  EOS_SENSOR_TYPE_SPO2,  &_generic_ops);
     eos_dev_sensor_register("sim_light", EOS_SENSOR_TYPE_LIGHT, &_generic_ops);
+    eos_dev_sensor_register("sim_temp",  EOS_SENSOR_TYPE_TEMP,  &_generic_ops);
+    eos_dev_sensor_register("sim_baro",  EOS_SENSOR_TYPE_BARO,  &_generic_ops);
+    eos_dev_sensor_register("sim_step",  EOS_SENSOR_TYPE_STEP,  &_generic_ops);
 
     /*
      * NOTE: Sensors are NOT enabled by default here. The service layer
@@ -473,6 +477,6 @@ void eos_port_sensor_init(void) {
         lv_timer_set_repeat_count(_poll_timer, -1);  /* Run indefinitely */
     }
 
-    printf("[PortSensor] INIT    | %zu sensor types configured, 5 devices registered, poll period=%ums\n",
+    printf("[PortSensor] INIT    | %zu sensor types configured, 9 devices registered, poll period=%ums\n",
            SENSOR_COUNT, POLL_PERIOD_MS);
 }
