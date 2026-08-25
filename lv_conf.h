@@ -333,14 +333,8 @@
 #define LV_USE_ASSERT_NULL          1   /*Check if the parameter is NULL. (Very fast, recommended)*/
 #define LV_USE_ASSERT_MALLOC        1   /*Checks is the memory is successfully allocated or no. (Very fast, recommended)*/
 #define LV_USE_ASSERT_STYLE         1
-#define LV_USE_ASSERT_MEM_INTEGRITY 1 /* PERF: When enabled, lv_mem_test() walks the
-                                         entire TLSF pool after EVERY timer callback,
-                                         layout, and draw op. Cost scales with allocated
-                                         blocks (incl. parked recents apps). Useful for
-                                         catching heap corruption, but disable when doing
-                                         any frame-rate / scrolling perf testing.
-                                         See AGENTS.md § Performance Pitfalls. */
-#define LV_USE_ASSERT_OBJ           1
+#define LV_USE_ASSERT_MEM_INTEGRITY 0   /* Severely impacts performance; disable for performance testing. */
+#define LV_USE_ASSERT_OBJ           0   /* Severely impacts performance; disable for performance testing. */
 #endif
 
 /*Add a custom handler when assert happens e.g. to restart the MCU*/
