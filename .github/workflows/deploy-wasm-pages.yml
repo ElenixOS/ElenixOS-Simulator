@@ -31,6 +31,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+
       - name: Setup Emscripten SDK
         run: |
           set -euo pipefail

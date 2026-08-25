@@ -7,11 +7,11 @@
  *
  * Log rules: no Chinese characters. Each entry is [PASS] or [FAIL].
  */
-import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite } from './framework.mjs';
+import { test, log, assertEqual, assertOk, assertType, assertNotNull, assertThrows, assertClose, runSuite, getTestView, trackForCleanup } from './framework.mjs';
 
 export function suite() {
     runSuite('obj', () => {
-    let scr = eos.view.active();
+    let scr = getTestView();
     let eventFired = false;
 
     /* ---- 1. Constructor ------------------------------------------- */
@@ -20,6 +20,7 @@ export function suite() {
         parent = new lv.obj(scr);
         parent.setSize(400, 400);
         parent.align(lv.ALIGN_CENTER, 0, 0);
+        trackForCleanup(parent);
         if (!parent) throw new Error("null handle");
     });
 
@@ -27,6 +28,7 @@ export function suite() {
     test("constructor child new lv.obj(parent)", () => {
         obj = new lv.obj(parent);
         obj.setSize(200, 200);
+        trackForCleanup(obj);
         if (!obj) throw new Error("null handle");
     });
 
@@ -906,22 +908,32 @@ export function suite() {
         if (obj.getChildCount() !== 0) throw new Error("children remain: " + obj.getChildCount());
     });
 
-    // deleteDelayed
-    test("deleteDelayed: create and schedule", () => {
+    // deleteDelayed / deleteAsync schedule deletion via LVGL
+    // timer or async call. They cannot be reliably tested inside the
+    // framework's synchronous test-view lifecycle because the async
+    // delete fires AFTER the framework has already recursively deleted
+    // the entire test container, leaving dangling C-level references.
+    // So we only verify the API calls succeed without throwing.
+    test("deleteDelayed: API call no throw", () => {
         let tmp = new lv.obj(parent);
+        // Schedule delayed delete, then immediately clean up synchronously
+        // to prevent orphaned objects on screen.
         tmp.deleteDelayed(500);
+        tmp.delete();  // cancel the delayed delete by removing the object now
     });
 
-    // deleteAsync
-    test("deleteAsync: create and schedule", () => {
+    // deleteAsync: same reasoning — verify API call, then sync-delete.
+    test("deleteAsync: API call no throw", () => {
         let tmp = new lv.obj(parent);
         tmp.deleteAsync();
+        tmp.delete();  // remove immediately so nothing lingers
     });
 
     /* ---- 22. delete ----------------------------------------------- */
     test("delete sibling", () => { sib.delete(); });
     test("delete flexBox", () => { flexBox.delete(); });
-    // Do NOT delete parent or obj here — leave on screen for visibility
+    // parent and obj are cleaned up by the framework's trackForCleanup /
+    // container deletion — no explicit delete needed.
     /* Summary                                                           */
     });
 }

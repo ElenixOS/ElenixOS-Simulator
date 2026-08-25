@@ -333,7 +333,13 @@
 #define LV_USE_ASSERT_NULL          1   /*Check if the parameter is NULL. (Very fast, recommended)*/
 #define LV_USE_ASSERT_MALLOC        1   /*Checks is the memory is successfully allocated or no. (Very fast, recommended)*/
 #define LV_USE_ASSERT_STYLE         1
-#define LV_USE_ASSERT_MEM_INTEGRITY 1
+#define LV_USE_ASSERT_MEM_INTEGRITY 1 /* PERF: When enabled, lv_mem_test() walks the
+                                         entire TLSF pool after EVERY timer callback,
+                                         layout, and draw op. Cost scales with allocated
+                                         blocks (incl. parked recents apps). Useful for
+                                         catching heap corruption, but disable when doing
+                                         any frame-rate / scrolling perf testing.
+                                         See AGENTS.md § Performance Pitfalls. */
 #define LV_USE_ASSERT_OBJ           1
 #endif
 
@@ -492,7 +498,7 @@
 #define LV_FONT_MONTSERRAT_10 0
 #define LV_FONT_MONTSERRAT_12 0
 #define LV_FONT_MONTSERRAT_14 1
-#define LV_FONT_MONTSERRAT_16 0
+#define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_18 0
 #define LV_FONT_MONTSERRAT_20 0
 #define LV_FONT_MONTSERRAT_22 0
