@@ -14,7 +14,7 @@
 #include <stdbool.h>
 
 /* Forward-declare LVGL types to avoid pulling in lvgl.h from this header */
-typedef struct lv_obj_t lv_obj_t;
+typedef struct _lv_obj_t lv_obj_t;
 
 #ifdef __cplusplus
 extern "C"
