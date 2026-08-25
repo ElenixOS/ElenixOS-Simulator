@@ -23,7 +23,7 @@ const root = eos.ww.background(view, SW, SH, 0, BG);
 
 // ── Top status row ─────────────────────────────────────────────
 const top = new lv.obj(root);
-top.setSize(SW, 60);
+top.setSize(SW, 36);
 top.setPos(0, 8);
 top.setStyleBgOpa(0, lv.PART_MAIN);
 top.setStylePadAll(0, lv.PART_MAIN);
@@ -34,7 +34,19 @@ makeStatic(top);
 const digitalClock = eos.ww.digitalClock(top);
 const date = eos.ww.date(top);
 const dateWindow = eos.ww.dateWindow(top);
-const weekdayRing = eos.ww.weekdayRing(top, 0x5A6472, 0xFFFFFF);
+
+// ── Weekday strip (own bar below the status row) ──────────────
+// The 7-day ring is too wide to share the status row with the clock
+// and date widgets, so it gets its own full-width bar, centred.
+const weekdayBar = new lv.obj(root);
+weekdayBar.setSize(SW, 28);
+weekdayBar.setPos(0, 48);
+weekdayBar.setStyleBgOpa(0, lv.PART_MAIN);
+weekdayBar.setStylePadAll(0, lv.PART_MAIN);
+weekdayBar.setFlexFlow(lv.FLEX_FLOW_ROW);
+weekdayBar.setFlexAlign(lv.FLEX_ALIGN_CENTER, lv.FLEX_ALIGN_CENTER, lv.FLEX_ALIGN_CENTER);
+makeStatic(weekdayBar);
+const weekdayRing = eos.ww.weekdayRing(weekdayBar, 0x5A6472, 0xFFFFFF);
 
 // ── Analog clock face ─────────────────────────────────────────
 const FACE_RADIUS = 120;
@@ -42,13 +54,24 @@ const FACE_W = FACE_RADIUS * 2;
 const FACE_X = Math.floor((SW - FACE_W) / 2);
 const FACE_Y = Math.floor((SH - FACE_W) / 2) - 10;
 
+// Decorative ring outline (drawn behind the face). Kept as a separate
+// object because LVGL offsets children by the parent's border width — a
+// border on `face` would shift the hands/ticks/numerals off the true centre.
+const faceRing = new lv.obj(root);
+faceRing.setSize(FACE_W, FACE_W);
+faceRing.setPos(FACE_X, FACE_Y);
+faceRing.setStyleBgOpa(0, lv.PART_MAIN);
+faceRing.setStyleBorderWidth(3, lv.PART_MAIN);
+faceRing.setStyleBorderColor(lv.color.hex(RING), lv.PART_MAIN);
+faceRing.setStyleRadius(FACE_RADIUS, lv.PART_MAIN);
+makeStatic(faceRing);
+
+// The face itself is borderless so its content area == its bounding box:
+// every child coordinates (hands, ticks, numerals, cap) share centre (0,0)+.
 const face = new lv.obj(root);
 face.setSize(FACE_W, FACE_W);
 face.setPos(FACE_X, FACE_Y);
 face.setStyleBgOpa(0, lv.PART_MAIN);
-face.setStyleBorderWidth(3, lv.PART_MAIN);
-face.setStyleBorderColor(lv.color.hex(RING), lv.PART_MAIN);
-face.setStyleRadius(FACE_RADIUS, lv.PART_MAIN);
 face.setStylePadAll(0, lv.PART_MAIN);
 makeStatic(face);
 
@@ -77,6 +100,7 @@ makeHand(face, eos.CLOCK_HAND_HOUR, Math.floor(FACE_RADIUS * 0.56), 10, 0xE4E8F0
 makeHand(face, eos.CLOCK_HAND_MINUTE, Math.floor(FACE_RADIUS * 0.80), 6, 0xC0C8D4);
 makeHand(face, eos.CLOCK_HAND_SECOND, Math.floor(FACE_RADIUS * 0.93), 2, 0xFF3B3B);
 
+// Centre cap over the hand pivot (self-centring via the C widget)
 eos.ww.centerCap(face, 14, 6, CAP_OUTER, CAP_INNER);
 
 // ── Status widget grid (bottom) ────────────────────────────────

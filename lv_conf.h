@@ -726,7 +726,7 @@
 /*File system interfaces for common APIs */
 
 /*Setting a default driver letter allows skipping the driver prefix in filepaths*/
-#define LV_FS_DEFAULT_DRIVE_LETTER 'Z'
+#define LV_FS_DEFAULT_DRIVER_LETTER 'Z'
 
 /*API for fopen, fread, etc*/
 #define LV_USE_FS_STDIO 1

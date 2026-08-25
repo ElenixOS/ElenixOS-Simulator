@@ -200,6 +200,7 @@ set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_debug_anim.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_debug_anim_panel.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_debug_sensor_panel.c
     ${PROJECT_SOURCE_DIR}/main/src/port/vibrator/eos_port_vibrator.c
     ${PROJECT_SOURCE_DIR}/main/src/port/display/eos_port_display.c
     ${PROJECT_SOURCE_DIR}/main/src/port/power/eos_port_power.c

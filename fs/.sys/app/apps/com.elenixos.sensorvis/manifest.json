@@ -1,0 +1,10 @@
+{
+    "id": "com.elenixos.sensorvis",
+    "name": "Sensor Viz",
+    "version": "0.1.0",
+    "author": "ElenixOS",
+    "description": "Visual sensor dashboard with IMU attitude indicator, compass, heart rate and more",
+    "minApiLevel": 0,
+    "targetApiLevel": 0,
+    "permissions": ["sensor"]
+}
