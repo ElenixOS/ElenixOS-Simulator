@@ -195,6 +195,7 @@ endif()
 set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/main.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_port.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_esh_vscode.c
 
     ${PROJECT_SOURCE_DIR}/main/src/mac_api.c
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c

@@ -13,6 +13,7 @@
 			"ms-vscode.cpptools", // common C/C++ support
 			"ms-vscode.cpptools-themes", // general C/C++ theme
 			"ms-vscode.cmake-tools", // cmake support
+			"vadimcn.vscode-lldb", // interactive native debugging in the integrated terminal
 			"ritwickdey.liveserver" // static hosting for WASM output
 		],
 		"unwantedRecommendations": []
@@ -25,6 +26,9 @@
 		"cmake.configureOnOpen": true,
 		"cmake.automaticReconfigure": true,
 		"cmake.buildBeforeRun": true,
+		// Do not inject `source .venv/bin/activate` into CodeLLDB's
+		// interactive debug terminal. It can race with codelldb-launch.
+		"python.terminal.activateEnvironment": false,
 		"liveServer.settings.port": 5500,
 		"liveServer.settings.root": "/",
 		"liveServer.settings.ignoreFiles": [
@@ -278,8 +282,20 @@
 		"version": "0.2.0",
 		"debug.openDebug": "openOnSessionStart",
 		"debug.focusConsoleOnStart": false,
-		"console": "integratedTerminal",
 		"configurations": [
+			{
+				"name": "Debug ElenixOS with CodeLLDB (integrated terminal)",
+				"type": "lldb",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/main",
+				"args": [],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build",
+				"terminal": "integrated",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe"
+				}
+			},
 			{
 				"name": "Debug ElenixOS with gdb",
 				"type": "cppdbg",
@@ -289,13 +305,13 @@
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
+				"externalConsole": false,
 				"linux": {
 					"MIMode": "gdb",
 					"miDebuggerPath": "/usr/bin/gdb"
 				},
 				"osx": {
-					"MIMode": "lldb",
-					// "externalConsole": true
+					"MIMode": "lldb"
 				},
 				"windows": {
 					"MIMode": "gdb",
@@ -312,6 +328,7 @@
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
+				"externalConsole": false,
 				"MIMode": "lldb"
 			},
 			{

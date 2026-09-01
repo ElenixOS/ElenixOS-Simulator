@@ -48,6 +48,7 @@
 #include "eos_service_sensor.h"
 #include "eos_dev_battery.h"
 #include "eos_diag.h"
+#include "eos_esh_vscode.h"
 
 // Macros and Definitions
 
@@ -297,6 +298,13 @@ int main(int argc, char **argv)
 
     eos_init();
 
+#ifndef __EMSCRIPTEN__
+    if (eos_esh_vscode_init() != EOS_OK)
+    {
+        EOS_LOG_W("VSCode terminal frontend initialization failed");
+    }
+#endif
+
     /* Debug animation tuner (simulator only, no-op in production) */
     eos_debug_anim_init();
 
@@ -322,6 +330,7 @@ int main(int argc, char **argv)
 #else
     while (1)
     {
+        eos_esh_vscode_poll();
         uint32_t d = eos_main_loop();
 #if EOS_ENABLE_DIAG
         eos_diag_periodic_sample();

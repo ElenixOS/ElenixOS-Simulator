@@ -157,4 +157,8 @@ It requires a working version of GCC, GDB and make in your path.
 
 To allow debugging inside VSCode you will also require a GDB [extension](https://marketplace.visualstudio.com/items?itemName=webfreak.debug) or other suitable debugger. All the requirements, build and debug settings have been pre-configured in the [.workspace](simulator.code-workspace) file.
 
+On Linux, macOS, and Windows, use **Debug ElenixOS with CodeLLDB (integrated terminal)**. It requires the recommended `vadimcn.vscode-lldb` extension and keeps ESH input/output in VSCode instead of opening an external terminal for every debug session. This is especially important on macOS, where the alternative may create a new Terminal.app window for each debug session. The existing `cppdbg` configurations remain available as compatibility options. Do not run `codelldb-launch` manually; it only works while the CodeLLDB adapter started by VSCode is listening.
+
+ESH requires a real interactive stdin/stdout terminal. The `cppdbg`/MI-based configurations in this workspace are intended for non-interactive debugging: on macOS, `lldb-mi` cannot reliably provide an integrated interactive terminal, while an external console may create a separate Terminal.app window; the VSCode Debug Console does not provide stdin for the debuggee. Therefore, use CodeLLDB when you need to type ESH commands. If the program only needs breakpoints, stepping, variables, or log output, you may use the existing GDB or LLDB configurations without CodeLLDB.
+
 The project can use **SDL** but it can be easily relaced by any other built-in LVGL dirvers.
