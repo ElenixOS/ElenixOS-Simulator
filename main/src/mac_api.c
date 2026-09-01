@@ -4,12 +4,16 @@
  */
 
 #include "mac_api.h"
+#include "eos_config.h"
+#include "config/eos_simulator_config.h"
 
 // Includes
 #include <stdio.h>
 #include <stdlib.h>
 #if defined(__APPLE__)
+#if EOS_PORT_MACOS_VOLUME_CONTROL_ENABLE
 #include <CoreAudio/CoreAudio.h>
+#endif
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/ps/IOPowerSources.h>
 #include <IOKit/ps/IOPSKeys.h>
@@ -24,6 +28,8 @@
 #define VOLUME_ERROR -1.0f
 
 #if defined(__APPLE__)
+
+#if EOS_PORT_MACOS_VOLUME_CONTROL_ENABLE
 
 // Get the default output audio device ID
 static AudioDeviceID get_default_output_device(void)
@@ -121,6 +127,20 @@ void set_system_volume(float volume)
     set_channel_volume(deviceID, 1, volume);
     set_channel_volume(deviceID, 2, volume);
 }
+
+#else
+
+float get_system_volume(void)
+{
+    return VOLUME_ERROR;
+}
+
+void set_system_volume(float volume)
+{
+    (void)volume;
+}
+
+#endif /* EOS_PORT_MACOS_VOLUME_CONTROL_ENABLE */
 
 float get_system_battery_level(void)
 {

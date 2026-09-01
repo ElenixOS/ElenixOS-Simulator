@@ -1,0 +1,15 @@
+#
+# ElenixOS Simulator Platform Configuration
+#
+
+menu "Platform Ports"
+
+config EOS_PORT_MACOS_VOLUME_CONTROL_ENABLE
+    bool "Enable macOS system volume control"
+    default y
+    help
+      Allow the native macOS audio port to update the host system volume
+      when the ElenixOS speaker volume changes. Disable this when the
+      simulator must keep volume changes local to the watch UI.
+
+endmenu

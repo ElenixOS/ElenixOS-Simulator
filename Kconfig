@@ -1,0 +1,8 @@
+#
+# ElenixOS Simulator Configuration
+#
+
+mainmenu "ElenixOS Simulator Configuration"
+
+source "ElenixOS/src/config/Kconfig"
+source "main/src/config/Kconfig"

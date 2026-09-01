@@ -125,6 +125,16 @@ different kernel settings.
 The generated header is written to `build/generated/eos_config_gen.h`
 and is automatically included during compilation.
 
+The simulator-level `Kconfig` composes the ElenixOS kernel configuration
+with platform-specific options from `main/src/config/Kconfig`. Platform
+port behavior is therefore configured by the consuming simulator project,
+not by the ElenixOS core.
+
+For example, to prevent the macOS simulator from changing the host system
+volume, open `make menuconfig`, go to **Platform Ports**, and disable
+**Enable macOS system volume control**. The setting is stored in the
+build-specific `build/.config` file.
+
 ### Linux
 
 ```bash

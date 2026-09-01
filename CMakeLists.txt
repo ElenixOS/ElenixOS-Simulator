@@ -101,12 +101,28 @@ include_directories(${PROJECT_SOURCE_DIR}/main/inc)
 include_directories(${PROJECT_SOURCE_DIR}/debugger_box)
 
 # Kconfig: merge project defaults → build-dir .config → generated header
+if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+    # Prefer the project virtual environment so kconfiglib installed there is
+    # available even when CMake was launched from a shell without activation.
+    set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python" CACHE FILEPATH
+        "Python interpreter used by the simulator" FORCE)
+elseif(EXISTS "${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe")
+    set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe" CACHE FILEPATH
+        "Python interpreter used by the simulator" FORCE)
+endif()
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     set(KCONFIG_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/kconfig.py")
+    set(KCONFIG_FILE "${CMAKE_SOURCE_DIR}/Kconfig")
     set(KCONFIG_DEFAULTS "${CMAKE_SOURCE_DIR}/main/src/config/defaults.conf")
     set(KCONFIG_DIR  "${CMAKE_BINARY_DIR}")
     set(KCONFIG_OUT  "${CMAKE_BINARY_DIR}/generated/eos_config_gen.h")
+
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${KCONFIG_FILE}"
+        "${CMAKE_SOURCE_DIR}/main/src/config/Kconfig"
+        "${CMAKE_SOURCE_DIR}/ElenixOS/src/config/Kconfig"
+    )
 
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
     include_directories("${CMAKE_BINARY_DIR}/generated")

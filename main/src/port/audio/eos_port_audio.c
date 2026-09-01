@@ -14,6 +14,8 @@
 
 #include "eos_port_audio.h"
 #include "eos_port_audio_decoder.h"
+#include "eos_config.h"
+#include "config/eos_simulator_config.h"
 
 #ifdef __APPLE__
 
@@ -303,7 +305,11 @@ static int _speaker_resume(void)
 
 static int _speaker_set_volume(uint8_t volume)
 {
+#if EOS_PORT_MACOS_VOLUME_CONTROL_ENABLE
     set_system_volume(volume * 0.01);
+#else
+    (void)volume;
+#endif
     return 0;
 }
 
