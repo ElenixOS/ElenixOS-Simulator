@@ -464,6 +464,10 @@
             elenixApi.crownClick();
             ok = true;
             break;
+          case 'crownLongPress':
+            elenixApi.crownLongPress();
+            ok = true;
+            break;
           case 'sideClick':
             elenixApi.sideClick();
             ok = true;
@@ -515,6 +519,7 @@
       }
 
       var crownClick = Module.cwrap('eos_wasm_crown_click', null, []);
+      var crownLongPress = Module.cwrap('eos_wasm_crown_long_press', null, []);
       var sideClick = Module.cwrap('eos_wasm_side_click', null, []);
       var launchAppById = Module.cwrap('eos_wasm_launch_app_by_id', 'number', ['string']);
       var reloadCurrentScript = Module.cwrap('eos_wasm_reload_current_script', 'number', []);
@@ -527,6 +532,10 @@
       elenixApi = {
         crownClick: function() {
           crownClick();
+          return true;
+        },
+        crownLongPress: function() {
+          crownLongPress();
           return true;
         },
         sideClick: function() {
@@ -571,18 +580,55 @@
         namespace: ELENIX_MSG_NAMESPACE,
         type: ELENIX_MSG_TYPE_READY,
         ready: true,
-        actions: ['crownClick', 'sideClick', 'launchAppById', 'reloadCurrentScript', 'backToWatchface', 'writeAppMainJs', 'readAppMainJs']
+        actions: ['crownClick', 'crownLongPress', 'sideClick', 'launchAppById', 'reloadCurrentScript', 'backToWatchface', 'writeAppMainJs', 'readAppMainJs']
       });
 
       flushPendingCommands();
 
-      crownBtn.addEventListener('click', function() {
+      var crownPressTimer = null;
+      var crownLongPressed = false;
+
+      function crownShortClick() {
         queueOrExecute({
           id: '',
           action: 'crownClick',
           payload: {},
           replyTo: false
         });
+      }
+
+      function crownDoLongPress() {
+        queueOrExecute({
+          id: '',
+          action: 'crownLongPress',
+          payload: {},
+          replyTo: false
+        });
+      }
+
+      crownBtn.addEventListener('pointerdown', function() {
+        crownLongPressed = false;
+        crownPressTimer = setTimeout(function() {
+          crownLongPressed = true;
+          crownDoLongPress();
+        }, 500);
+      });
+
+      crownBtn.addEventListener('pointerup', function() {
+        if (crownPressTimer) {
+          clearTimeout(crownPressTimer);
+          crownPressTimer = null;
+        }
+        if (!crownLongPressed) {
+          crownShortClick();
+        }
+      });
+
+      crownBtn.addEventListener('pointerleave', function() {
+        if (crownPressTimer) {
+          clearTimeout(crownPressTimer);
+          crownPressTimer = null;
+        }
       });
 
       sideBtn.addEventListener('click', function() {

@@ -342,9 +342,14 @@ int main(int argc, char **argv)
 }
 
 #ifndef __EMSCRIPTEN__
-static void _crown_clicked_cb(lv_event_t *e)
+static void _crown_short_clicked_cb(lv_event_t *e)
 {
     eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+}
+
+static void _crown_long_pressed_cb(lv_event_t *e)
+{
+    eos_crown_button_report(EOS_BUTTON_STATE_LONG_PRESSED);
 }
 
 static void _side_button_clicked_cb(lv_event_t *e)
@@ -357,6 +362,11 @@ static void _side_button_clicked_cb(lv_event_t *e)
 EMSCRIPTEN_KEEPALIVE void eos_wasm_crown_click(void)
 {
     eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+}
+
+EMSCRIPTEN_KEEPALIVE void eos_wasm_crown_long_press(void)
+{
+    eos_crown_button_report(EOS_BUTTON_STATE_LONG_PRESSED);
 }
 
 static char *g_wasm_last_read_code = NULL;
@@ -468,11 +478,13 @@ typedef struct
 
 static void _mouse_wheel_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
+    static lv_indev_state_t prev_state = LV_INDEV_STATE_RELEASED;
     lv_sdl_mousewheel_t *dsc = lv_indev_get_driver_data(indev);
 
     eos_crown_encoder_report(dsc->diff);
-    if (dsc->state == LV_INDEV_STATE_PRESSED)
+    if (dsc->state == LV_INDEV_STATE_PRESSED && prev_state == LV_INDEV_STATE_RELEASED)
         eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+    prev_state = dsc->state;
     dsc->diff = 0;
 }
 
@@ -839,7 +851,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     static lv_style_prop_t props[] = {LV_STYLE_IMAGE_RECOLOR_OPA, 0};
     lv_style_transition_dsc_init(&tr, props, lv_anim_path_linear, 100, 0, NULL);
     lv_style_set_transition(&style_pressed, &tr);
-    lv_obj_add_event_cb(crown, _crown_clicked_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(crown, _crown_short_clicked_cb, LV_EVENT_SHORT_CLICKED, NULL);
+    lv_obj_add_event_cb(crown, _crown_long_pressed_cb, LV_EVENT_LONG_PRESSED, NULL);
 
     lv_obj_add_style(crown, &style_pressed, LV_STATE_PRESSED);
 
