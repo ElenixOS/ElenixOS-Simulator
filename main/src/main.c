@@ -470,22 +470,15 @@ EMSCRIPTEN_KEEPALIVE const char *eos_wasm_read_app_main_js(const char *app_id)
 }
 #endif
 
-typedef struct
-{
-    int16_t diff;
-    lv_indev_state_t state;
-} lv_sdl_mousewheel_t;
-
 static void _mouse_wheel_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     static lv_indev_state_t prev_state = LV_INDEV_STATE_RELEASED;
-    lv_sdl_mousewheel_t *dsc = lv_indev_get_driver_data(indev);
 
-    eos_crown_encoder_report(dsc->diff);
-    if (dsc->state == LV_INDEV_STATE_PRESSED && prev_state == LV_INDEV_STATE_RELEASED)
+    eos_crown_encoder_report(data->enc_diff);
+    if (data->state == LV_INDEV_STATE_PRESSED && prev_state == LV_INDEV_STATE_RELEASED)
         eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
-    prev_state = dsc->state;
-    dsc->diff = 0;
+    prev_state = data->state;
+    LV_UNUSED(indev);
 }
 
 /**
@@ -525,7 +518,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif
 
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
-    lv_indev_set_read_cb(mousewheel, _mouse_wheel_read_cb);
+    lv_indev_set_display(mousewheel, disp);
+    lv_sdl_mousewheel_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
@@ -689,9 +683,9 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif
 
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
-    // lv_indev_set_display(mousewheel, disp);
+    lv_indev_set_display(mousewheel, disp);
     // lv_indev_set_group(mousewheel, lv_group_get_default());
-    lv_indev_set_read_cb(mousewheel, _mouse_wheel_read_cb);
+    lv_sdl_mousewheel_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
