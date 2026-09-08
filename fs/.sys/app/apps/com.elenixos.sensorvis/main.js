@@ -654,9 +654,8 @@ const env     = createEnvCard(page);
 // ==========================================================================
 //  Sensor configuration
 // ==========================================================================
-// Enable all sensors we need. Note: we re-apply the sample period in the
-// update loop (every 25 ticks ≈ 1s) to keep sensors enabled even if the
-// watchface widgets unsubscribe when the watchface is hidden.
+// Enable all sensors we need. The sensor service owns the sampling lifecycle;
+// keep this configuration one-shot and let the service handle mode changes.
 eos.sensor.setSamplePeriod(eos.SENSOR_ACCE,   40);
 eos.sensor.setSamplePeriod(eos.SENSOR_GYRO,   40);
 eos.sensor.setSamplePeriod(eos.SENSOR_MAG,   100);
@@ -672,7 +671,6 @@ eos.sensor.setSamplePeriod(eos.SENSOR_STEP, 1000);
 let roll  = 0.0;
 let pitch = 0.0;
 let yaw   = 0.0;
-let tick  = 0;
 
 function fmt(v, d) {
     const m = Math.pow(10, d);
@@ -686,21 +684,6 @@ function padL(s, w) {
 }
 
 function updateSensors() {
-    tick++;
-
-    // Re-apply sample period every ~1s to keep sensors enabled
-    // (watchface unsubscribe may disable them when watchface is hidden)
-    if (tick % 25 === 0) {
-        eos.sensor.setSamplePeriod(eos.SENSOR_ACCE,   40);
-        eos.sensor.setSamplePeriod(eos.SENSOR_GYRO,   40);
-        eos.sensor.setSamplePeriod(eos.SENSOR_MAG,   100);
-        eos.sensor.setSamplePeriod(eos.SENSOR_HR,   1000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_TEMP, 2000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_BARO, 2000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_LIGHT,1000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_STEP, 1000);
-    }
-
     // ── IMU ───────────────────────────────────────────────────
     const acce = eos.sensor.readLatest(eos.SENSOR_ACCE);
     const gyro = eos.sensor.readLatest(eos.SENSOR_GYRO);

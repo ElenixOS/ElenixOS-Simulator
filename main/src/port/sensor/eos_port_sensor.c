@@ -463,7 +463,11 @@ static void _generic_set_sample_rate(eos_dev_sensor_t *dev, uint32_t hz)
         return;
 
     uint32_t old_hz = s->sample_rate_hz;
-    s->sample_rate_hz = (hz > 0) ? hz : 1;
+    uint32_t new_hz = (hz > 0) ? hz : 1;
+    if (old_hz == new_hz)
+        return;
+
+    s->sample_rate_hz = new_hz;
     s->last_poll_tick = 0; /* reset to apply new rate immediately */
 
     printf("[PortSensor:%s] HW_CFG   | ODR changed: %u Hz → %u Hz\n", s->type_name, old_hz, s->sample_rate_hz);
