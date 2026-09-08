@@ -29,7 +29,8 @@
 
 #define AT_READ_BUFFER_PACKETS 512
 
-typedef struct {
+typedef struct
+{
     AudioFileID audioFile;
     AudioStreamBasicDescription srcFormat;
     AudioConverterRef converter;
@@ -37,7 +38,7 @@ typedef struct {
     SInt64 totalPackets;
     UInt32 packetIndex;
     UInt32 maxPacketSize;
-    uint8_t *readBuf;          /* compressed input from AudioFile  */
+    uint8_t *readBuf; /* compressed input from AudioFile  */
     UInt32 readBufSize;
     uint32_t bytesPerFrame;
     bool isLPCM;
@@ -48,42 +49,55 @@ static bool _at_is_lpcm(const AudioStreamBasicDescription *fmt)
     return fmt->mFormatID == kAudioFormatLinearPCM;
 }
 
-static eos_result_t _at_probe(const void *src, eos_audio_src_type_t src_type,
-                              eos_audio_format_t *format)
+static eos_result_t _at_probe(const void *src, eos_audio_src_type_t src_type, eos_audio_format_t *format)
 {
-    if (src_type != EOS_AUDIO_SRC_FILE) return EOS_FAILED;
+    if (src_type != EOS_AUDIO_SRC_FILE)
+        return EOS_FAILED;
 
     char *resolved = eos_port_audio_resolve_path((const char *)src);
-    if (!resolved) return EOS_FAILED;
+    if (!resolved)
+    {
+        EOS_LOG_D("AT probe: cannot resolve %s", (const char *)src);
+        return EOS_FAILED;
+    }
 
     CFURLRef url = eos_port_audio_create_cfurl(resolved);
+    EOS_LOG_D("AT probe: %s -> %s", (const char *)src, resolved);
     free(resolved);
-    if (!url) return EOS_FAILED;
+    if (!url)
+    {
+        EOS_LOG_D("AT probe: cannot create URL");
+        return EOS_FAILED;
+    }
 
     AudioFileID af = NULL;
     OSStatus status = AudioFileOpenURL(url, kAudioFileReadPermission, 0, &af);
     CFRelease(url);
-    if (status != noErr) return EOS_FAILED;
+    if (status != noErr)
+    {
+        EOS_LOG_D("AT probe: AudioFileOpenURL failed: %d", (int)status);
+        return EOS_FAILED;
+    }
 
     AudioStreamBasicDescription asbd;
     UInt32 propSize = sizeof(asbd);
-    status = AudioFileGetProperty(af, kAudioFilePropertyDataFormat,
-                                   &propSize, &asbd);
+    status = AudioFileGetProperty(af, kAudioFilePropertyDataFormat, &propSize, &asbd);
     if (status != noErr)
     {
+        EOS_LOG_D("AT probe: data format query failed: %d", (int)status);
         AudioFileClose(af);
         return EOS_FAILED;
     }
 
-    format->sample_rate    = (uint32_t)asbd.mSampleRate;
-    format->channels       = asbd.mChannelsPerFrame;
+    format->sample_rate = (uint32_t)asbd.mSampleRate;
+    format->channels = asbd.mChannelsPerFrame;
     format->bits_per_sample = asbd.mBitsPerChannel;
-    if (format->bits_per_sample == 0) format->bits_per_sample = 16;
+    if (format->bits_per_sample == 0)
+        format->bits_per_sample = 16;
 
     SInt64 totalPackets = 0;
     propSize = sizeof(totalPackets);
-    AudioFileGetProperty(af, kAudioFilePropertyAudioDataPacketCount,
-                         &propSize, &totalPackets);
+    AudioFileGetProperty(af, kAudioFilePropertyAudioDataPacketCount, &propSize, &totalPackets);
 
     if (_at_is_lpcm(&asbd) && totalPackets > 0)
     {
@@ -99,8 +113,7 @@ static eos_result_t _at_probe(const void *src, eos_audio_src_type_t src_type,
         else
         {
             propSize = sizeof(totalFrames);
-            AudioFileGetProperty(af, kAudioFilePropertyEstimatedDuration,
-                                 &propSize, &totalFrames);
+            AudioFileGetProperty(af, kAudioFilePropertyEstimatedDuration, &propSize, &totalFrames);
             totalFrames *= asbd.mSampleRate;
         }
         format->total_samples = (uint32_t)totalFrames;
@@ -116,7 +129,8 @@ static eos_result_t _at_probe(const void *src, eos_audio_src_type_t src_type,
 static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
 {
     at_dec_data_t *ad = calloc(1, sizeof(at_dec_data_t));
-    if (!ad) return EOS_ERR_MEM;
+    if (!ad)
+        return EOS_ERR_MEM;
 
     char *resolved = eos_port_audio_resolve_path((const char *)dsc->src);
     if (!resolved)
@@ -129,6 +143,7 @@ static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
     free(resolved);
     if (!url)
     {
+        EOS_LOG_D("AT open: cannot create URL");
         free(ad);
         return EOS_ERR_FILE_ERROR;
     }
@@ -137,52 +152,50 @@ static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
     CFRelease(url);
     if (status != noErr)
     {
+        EOS_LOG_D("AT open: AudioFileOpenURL failed: %d", (int)status);
         free(ad);
         return EOS_ERR_FILE_ERROR;
     }
 
     UInt32 propSize = sizeof(ad->srcFormat);
-    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyDataFormat,
-                         &propSize, &ad->srcFormat);
+    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyDataFormat, &propSize, &ad->srcFormat);
 
     ad->isLPCM = _at_is_lpcm(&ad->srcFormat);
 
     AudioStreamBasicDescription outFmt = {0};
-    outFmt.mFormatID         = kAudioFormatLinearPCM;
-    outFmt.mSampleRate       = ad->srcFormat.mSampleRate;
-    outFmt.mChannelsPerFrame = 1;   /* mono for wearable: single speaker */
-    outFmt.mBitsPerChannel   = 16;
-    outFmt.mBytesPerFrame    = 2;   /* 16-bit mono */
-    outFmt.mFramesPerPacket  = 1;
-    outFmt.mBytesPerPacket   = outFmt.mBytesPerFrame;
-    outFmt.mFormatFlags      = kAudioFormatFlagIsSignedInteger |
-                                kAudioFormatFlagIsPacked;
+    outFmt.mFormatID = kAudioFormatLinearPCM;
+    outFmt.mSampleRate = ad->srcFormat.mSampleRate;
+    outFmt.mChannelsPerFrame = 1; /* mono for wearable: single speaker */
+    outFmt.mBitsPerChannel = 16;
+    outFmt.mBytesPerFrame = 2; /* 16-bit mono */
+    outFmt.mFramesPerPacket = 1;
+    outFmt.mBytesPerPacket = outFmt.mBytesPerFrame;
+    outFmt.mFormatFlags = kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
 
     ad->bytesPerFrame = outFmt.mBytesPerFrame;
 
-    dsc->format.sample_rate    = (uint32_t)outFmt.mSampleRate;
-    dsc->format.channels       = outFmt.mChannelsPerFrame;
+    dsc->format.sample_rate = (uint32_t)outFmt.mSampleRate;
+    dsc->format.channels = outFmt.mChannelsPerFrame;
     dsc->format.bits_per_sample = outFmt.mBitsPerChannel;
 
     propSize = sizeof(ad->totalPackets);
-    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyAudioDataPacketCount,
-                         &propSize, &ad->totalPackets);
+    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyAudioDataPacketCount, &propSize, &ad->totalPackets);
 
     propSize = sizeof(ad->maxPacketSize);
-    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyPacketSizeUpperBound,
-                         &propSize, &ad->maxPacketSize);
-    if (ad->maxPacketSize == 0) ad->maxPacketSize = 4096;
+    AudioFileGetProperty(ad->audioFile, kAudioFilePropertyPacketSizeUpperBound, &propSize, &ad->maxPacketSize);
+    if (ad->maxPacketSize == 0)
+        ad->maxPacketSize = 4096;
 
-    bool needsConvert = !ad->isLPCM
-        || ad->srcFormat.mChannelsPerFrame != outFmt.mChannelsPerFrame
-        || ad->srcFormat.mSampleRate       != outFmt.mSampleRate
-        || ad->srcFormat.mBitsPerChannel   != outFmt.mBitsPerChannel;
+    bool needsConvert = !ad->isLPCM || ad->srcFormat.mChannelsPerFrame != outFmt.mChannelsPerFrame
+                        || ad->srcFormat.mSampleRate != outFmt.mSampleRate
+                        || ad->srcFormat.mBitsPerChannel != outFmt.mBitsPerChannel;
 
     if (needsConvert)
     {
         status = AudioConverterNew(&ad->srcFormat, &outFmt, &ad->converter);
         if (status != noErr)
         {
+            EOS_LOG_D("AT open: AudioConverterNew failed: %d", (int)status);
             AudioFileClose(ad->audioFile);
             free(ad);
             return EOS_ERR_DEV_ERROR;
@@ -190,26 +203,22 @@ static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
 
         UInt32 cookieSize = 0;
         UInt32 writable = 0;
-        AudioFileGetPropertyInfo(ad->audioFile, kAudioFilePropertyMagicCookieData,
-                                  &cookieSize, &writable);
+        AudioFileGetPropertyInfo(ad->audioFile, kAudioFilePropertyMagicCookieData, &cookieSize, &writable);
         if (cookieSize > 0)
         {
             void *cookie = malloc(cookieSize);
-            AudioFileGetProperty(ad->audioFile, kAudioFilePropertyMagicCookieData,
-                                  &cookieSize, cookie);
-            AudioConverterSetProperty(ad->converter,
-                                       kAudioConverterDecompressionMagicCookie,
-                                       cookieSize, cookie);
+            AudioFileGetProperty(ad->audioFile, kAudioFilePropertyMagicCookieData, &cookieSize, cookie);
+            AudioConverterSetProperty(ad->converter, kAudioConverterDecompressionMagicCookie, cookieSize, cookie);
             free(cookie);
         }
 
         ad->readBufSize = ad->maxPacketSize * AT_READ_BUFFER_PACKETS;
-        if (ad->readBufSize < 4096) ad->readBufSize = 4096;
+        if (ad->readBufSize < 4096)
+            ad->readBufSize = 4096;
         ad->readBuf = malloc(ad->readBufSize);
     }
 
-    bool isVBR = (ad->srcFormat.mBytesPerPacket == 0 ||
-                  ad->srcFormat.mFramesPerPacket == 0);
+    bool isVBR = (ad->srcFormat.mBytesPerPacket == 0 || ad->srcFormat.mFramesPerPacket == 0);
     if (isVBR || !ad->isLPCM)
     {
         ad->packetDescs = malloc(sizeof(AudioStreamPacketDescription) * AT_READ_BUFFER_PACKETS);
@@ -223,8 +232,7 @@ static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
     {
         Float64 estDur = 0;
         propSize = sizeof(estDur);
-        AudioFileGetProperty(ad->audioFile, kAudioFilePropertyEstimatedDuration,
-                             &propSize, &estDur);
+        AudioFileGetProperty(ad->audioFile, kAudioFilePropertyEstimatedDuration, &propSize, &estDur);
         dsc->format.total_samples = (uint32_t)(estDur * ad->srcFormat.mSampleRate);
     }
     if (dsc->format.total_samples > 0 && dsc->format.sample_rate > 0)
@@ -232,21 +240,30 @@ static eos_result_t _at_open(eos_audio_decoder_dsc_t *dsc)
 
     dsc->user_data = ad;
     EOS_LOG_I("srcFmt: %dHz %uch %ubits ID=%u bpF=%u fpP=%d bpP=%u flags=0x%x",
-           (int)ad->srcFormat.mSampleRate, ad->srcFormat.mChannelsPerFrame,
-           ad->srcFormat.mBitsPerChannel, (unsigned)ad->srcFormat.mFormatID,
-           (unsigned)ad->srcFormat.mBytesPerFrame, (int)ad->srcFormat.mFramesPerPacket,
-           (unsigned)ad->srcFormat.mBytesPerPacket, (unsigned)ad->srcFormat.mFormatFlags);
+              (int)ad->srcFormat.mSampleRate,
+              ad->srcFormat.mChannelsPerFrame,
+              ad->srcFormat.mBitsPerChannel,
+              (unsigned)ad->srcFormat.mFormatID,
+              (unsigned)ad->srcFormat.mBytesPerFrame,
+              (int)ad->srcFormat.mFramesPerPacket,
+              (unsigned)ad->srcFormat.mBytesPerPacket,
+              (unsigned)ad->srcFormat.mFormatFlags);
     EOS_LOG_I("outFmt: %dHz %uch %ubits bpF=%u packed int-signed, convert=%d totalPkts=%lld maxPkt=%u",
-           (int)outFmt.mSampleRate, outFmt.mChannelsPerFrame, outFmt.mBitsPerChannel,
-           (unsigned)outFmt.mBytesPerFrame, needsConvert, ad->totalPackets, ad->maxPacketSize);
+              (int)outFmt.mSampleRate,
+              outFmt.mChannelsPerFrame,
+              outFmt.mBitsPerChannel,
+              (unsigned)outFmt.mBytesPerFrame,
+              needsConvert,
+              ad->totalPackets,
+              ad->maxPacketSize);
     return EOS_OK;
 }
 
 static OSStatus _at_converter_input_proc(AudioConverterRef inAudioConverter,
-                                          UInt32 *ioNumberDataPackets,
-                                          AudioBufferList *ioData,
-                                          AudioStreamPacketDescription **outDataPacketDescription,
-                                          void *inUserData)
+                                         UInt32 *ioNumberDataPackets,
+                                         AudioBufferList *ioData,
+                                         AudioStreamPacketDescription **outDataPacketDescription,
+                                         void *inUserData)
 {
     (void)inAudioConverter;
     at_dec_data_t *ad = (at_dec_data_t *)inUserData;
@@ -258,7 +275,8 @@ static OSStatus _at_converter_input_proc(AudioConverterRef inAudioConverter,
     }
 
     UInt32 numPackets = *ioNumberDataPackets;
-    if (numPackets > AT_READ_BUFFER_PACKETS) numPackets = AT_READ_BUFFER_PACKETS;
+    if (numPackets > AT_READ_BUFFER_PACKETS)
+        numPackets = AT_READ_BUFFER_PACKETS;
 
     UInt32 numBytes = numPackets * ad->maxPacketSize;
     if (ad->readBufSize < numBytes)
@@ -267,12 +285,13 @@ static OSStatus _at_converter_input_proc(AudioConverterRef inAudioConverter,
         ad->readBufSize = numBytes;
     }
 
-    OSStatus status = AudioFileReadPacketData(ad->audioFile, false,
-                                               &numBytes,
-                                               ad->packetDescs,
-                                               ad->packetIndex,
-                                               &numPackets,
-                                               ad->readBuf);
+    OSStatus status = AudioFileReadPacketData(ad->audioFile,
+                                              false,
+                                              &numBytes,
+                                              ad->packetDescs,
+                                              ad->packetIndex,
+                                              &numPackets,
+                                              ad->readBuf);
     if (status != noErr || numPackets == 0)
     {
         *ioNumberDataPackets = 0;
@@ -293,8 +312,7 @@ static OSStatus _at_converter_input_proc(AudioConverterRef inAudioConverter,
     return noErr;
 }
 
-static eos_result_t _at_read_lpcm(eos_audio_decoder_dsc_t *dsc,
-                                  void *buf, uint32_t buf_size, uint32_t *bytes_read)
+static eos_result_t _at_read_lpcm(eos_audio_decoder_dsc_t *dsc, void *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
     at_dec_data_t *ad = (at_dec_data_t *)dsc->user_data;
 
@@ -315,12 +333,8 @@ static eos_result_t _at_read_lpcm(eos_audio_decoder_dsc_t *dsc,
     }
 
     UInt32 numBytes = wantPackets * ad->srcFormat.mBytesPerPacket;
-    OSStatus status = AudioFileReadPacketData(ad->audioFile, false,
-                                               &numBytes,
-                                               ad->packetDescs,
-                                               ad->packetIndex,
-                                               &wantPackets,
-                                               buf);
+    OSStatus status =
+        AudioFileReadPacketData(ad->audioFile, false, &numBytes, ad->packetDescs, ad->packetIndex, &wantPackets, buf);
     if (status != noErr || wantPackets == 0)
     {
         *bytes_read = 0;
@@ -330,11 +344,14 @@ static eos_result_t _at_read_lpcm(eos_audio_decoder_dsc_t *dsc,
     ad->packetIndex += wantPackets;
     *bytes_read = numBytes;
 
-    if (ad->bytesPerFrame > 0) {
+    if (ad->bytesPerFrame > 0)
+    {
         uint32_t misalign = *bytes_read % ad->bytesPerFrame;
-        if (misalign != 0) {
+        if (misalign != 0)
+        {
             static int lpcm_warn = 0;
-            if (lpcm_warn < 5) {
+            if (lpcm_warn < 5)
+            {
                 EOS_LOG_W("lpcm misalign: %u bytes (%u leftover)", *bytes_read, misalign);
                 lpcm_warn++;
             }
@@ -346,8 +363,7 @@ static eos_result_t _at_read_lpcm(eos_audio_decoder_dsc_t *dsc,
     return EOS_OK;
 }
 
-static eos_result_t _at_read_convert(eos_audio_decoder_dsc_t *dsc,
-                                     void *buf, uint32_t buf_size, uint32_t *bytes_read)
+static eos_result_t _at_read_convert(eos_audio_decoder_dsc_t *dsc, void *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
     at_dec_data_t *ad = (at_dec_data_t *)dsc->user_data;
 
@@ -367,13 +383,12 @@ static eos_result_t _at_read_convert(eos_audio_decoder_dsc_t *dsc,
 
     AudioStreamPacketDescription outPktDescs[AT_READ_BUFFER_PACKETS];
 
-    OSStatus status = AudioConverterFillComplexBuffer(
-        ad->converter,
-        _at_converter_input_proc,
-        ad,
-        &ioPackets,
-        &outBufList,
-        outPktDescs);
+    OSStatus status = AudioConverterFillComplexBuffer(ad->converter,
+                                                      _at_converter_input_proc,
+                                                      ad,
+                                                      &ioPackets,
+                                                      &outBufList,
+                                                      outPktDescs);
 
     if (status != noErr && status != kAudioConverterErr_RequiresPacketDescriptionsError)
     {
@@ -384,29 +399,32 @@ static eos_result_t _at_read_convert(eos_audio_decoder_dsc_t *dsc,
     *bytes_read = outBufList.mBuffers[0].mDataByteSize;
 
     /* Clamp to frame boundary: AudioConverter may produce trailing partial bytes */
-    if (ad->bytesPerFrame > 0) {
+    if (ad->bytesPerFrame > 0)
+    {
         uint32_t misalign = *bytes_read % ad->bytesPerFrame;
-        if (misalign != 0) {
+        if (misalign != 0)
+        {
             static int warn_count = 0;
-            if (warn_count < 5) {
-                EOS_LOG_W("convert misalign: %u bytes (%u leftover), clamping",
-                          *bytes_read, misalign);
+            if (warn_count < 5)
+            {
+                EOS_LOG_W("convert misalign: %u bytes (%u leftover), clamping", *bytes_read, misalign);
                 warn_count++;
             }
             *bytes_read -= misalign;
         }
     }
-    if (*bytes_read == 0) return EOS_OK;
+    if (*bytes_read == 0)
+        return EOS_OK;
 
     dsc->current_sample += *bytes_read / ad->bytesPerFrame;
     return EOS_OK;
 }
 
-static eos_result_t _at_read(eos_audio_decoder_dsc_t *dsc,
-                             void *buf, uint32_t buf_size, uint32_t *bytes_read)
+static eos_result_t _at_read(eos_audio_decoder_dsc_t *dsc, void *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
     at_dec_data_t *ad = (at_dec_data_t *)dsc->user_data;
-    if (!ad) return EOS_FAILED;
+    if (!ad)
+        return EOS_FAILED;
 
     static int _at_read_call = 0;
     eos_result_t r;
@@ -417,8 +435,12 @@ static eos_result_t _at_read(eos_audio_decoder_dsc_t *dsc,
 
     if (_at_read_call < 5 || (_at_read_call < 10 && *bytes_read == 0))
         EOS_LOG_I("read#%d: pkt=%u/%lld conv=%d buf=%u rd=%u",
-               _at_read_call, ad->packetIndex, ad->totalPackets,
-               ad->converter ? 1 : 0, buf_size, *bytes_read);
+                  _at_read_call,
+                  ad->packetIndex,
+                  ad->totalPackets,
+                  ad->converter ? 1 : 0,
+                  buf_size,
+                  *bytes_read);
     _at_read_call++;
     return r;
 }
@@ -426,7 +448,8 @@ static eos_result_t _at_read(eos_audio_decoder_dsc_t *dsc,
 static void _at_close(eos_audio_decoder_dsc_t *dsc)
 {
     at_dec_data_t *ad = (at_dec_data_t *)dsc->user_data;
-    if (!ad) return;
+    if (!ad)
+        return;
 
     if (ad->converter)
     {
@@ -454,10 +477,10 @@ void eos_port_audio_decoder_init(void)
     }
     dec->name = "AT";
     dec->probe_cb = _at_probe;
-    dec->open_cb  = _at_open;
-    dec->read_cb  = _at_read;
+    dec->open_cb = _at_open;
+    dec->read_cb = _at_read;
     dec->close_cb = _at_close;
-    dec->seek_cb  = NULL;
+    dec->seek_cb = NULL;
     EOS_LOG_I("AT decoder registered");
 }
 
