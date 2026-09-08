@@ -95,6 +95,32 @@ cmake -B build
 cmake --build build
 ```
 
+### Headless Native mode with VS Code Webview
+
+The Native Simulator also accepts `--headless` and does not create an SDL
+window. LVGL rendering, timers, animation, application logic, and the normal
+touch injection path continue to run. The headless display starts a loopback
+WebSocket server for the VS Code Webview and keeps the existing local IPC
+endpoint as a compatibility/control channel:
+
+```bash
+./bin/main --headless --ipc-socket /tmp/elenixos-simulator.sock
+```
+
+The atomic `*.ready` marker contains the tokenized WebSocket URL. On
+macOS/Linux the compatibility endpoint is a Unix-domain socket; on Windows it
+is loopback TCP. The VS Code extension consumes the marker, opens the Webview
+automatically when a marked Native debug session starts, and removes the
+endpoint/marker when the session, Webview, or extension stops. The tracked
+`simulator.code-workspace` contains headless configurations for CodeLLDB and
+cppdbg on all three desktop platforms.
+
+The Webview converts raw little-endian RGB565 WebSocket frames in a WebGL
+texture (with Canvas 2D fallback) and sends Pointer Events back as logical
+390x450 coordinates. The Simulator injects them through the existing
+`eos_touch_bind_indev` / `eos_touch_inject_*` backend. Dirty rectangles and
+compressed image frames are intentionally not part of the first version.
+
 ### WASM
 
 ```bash
@@ -169,6 +195,6 @@ To allow debugging inside VSCode you will also require a GDB [extension](https:/
 
 On Linux, macOS, and Windows, use **Debug ElenixOS with CodeLLDB (integrated terminal)**. It requires the recommended `vadimcn.vscode-lldb` extension and keeps ESH input/output in VSCode instead of opening an external terminal for every debug session. This is especially important on macOS, where the alternative may create a new Terminal.app window for each debug session. The existing `cppdbg` configurations remain available as compatibility options. Do not run `codelldb-launch` manually; it only works while the CodeLLDB adapter started by VSCode is listening.
 
-ESH requires a real interactive stdin/stdout terminal. The `cppdbg`/MI-based configurations in this workspace are intended for non-interactive debugging: on macOS, `lldb-mi` cannot reliably provide an integrated interactive terminal, while an external console may create a separate Terminal.app window; the VSCode Debug Console does not provide stdin for the debuggee. Therefore, use CodeLLDB when you need to type ESH commands. If the program only needs breakpoints, stepping, variables, or log output, you may use the existing GDB or LLDB configurations without CodeLLDB.
+ESH requires a real interactive stdin/stdout terminal. The headless Native path keeps ESH active alongside the framebuffer WebSocket; on Windows it supports both CodeLLDB pipe input and a native console without blocking the LVGL loop. The `cppdbg`/MI-based configurations in this workspace are intended for non-interactive debugging: on macOS, `lldb-mi` cannot reliably provide an integrated interactive terminal, while an external console may create a separate Terminal.app window; the VSCode Debug Console does not provide stdin for the debuggee. Therefore, use CodeLLDB when you need to type ESH commands. If the program only needs breakpoints, stepping, variables, or log output, you may use the existing GDB or LLDB configurations without CodeLLDB.
 
 The project can use **SDL** but it can be easily relaced by any other built-in LVGL dirvers.

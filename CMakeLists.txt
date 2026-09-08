@@ -212,6 +212,9 @@ set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/main.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_port.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_esh_vscode.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_display.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_ipc.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_websocket.c
 
     ${PROJECT_SOURCE_DIR}/main/src/mac_api.c
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c
@@ -239,6 +242,10 @@ endif()
 
 add_executable(main ${EOS_MAIN_SOURCES})
 set_target_properties(main PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${EOS_RUNTIME_OUTPUT_DIR}")
+
+if(WIN32)
+    target_link_libraries(main PRIVATE ws2_32)
+endif()
 
 if(USE_FREERTOS)
     target_link_libraries(main PRIVATE freertos_config FreeRTOS)

@@ -5,6 +5,7 @@
 
 #include "eos_port_display.h"
 #include "eos_dev_display.h"
+#include "eos_headless_display.h"
 
 #include <stdio.h>
 #include "lvgl/lvgl.h"
@@ -16,7 +17,10 @@ static void _set_brightness(uint8_t brightness)
     float b = (float)((100.0 - (float)brightness) / 100.0 * 255.0);
     printf("[PortDisplay] brightness: %d\n", brightness);
     if (!brightness_mask || !lv_obj_is_valid(brightness_mask))
+    {
+        eos_headless_display_set_brightness(brightness);
         return;
+    }
     if (b > 200)
     {
         b = 200;
@@ -31,6 +35,10 @@ static void _power_on(void)
     {
         lv_obj_remove_flag(brightness_mask, LV_OBJ_FLAG_HIDDEN);
     }
+    else
+    {
+        eos_headless_display_set_power(true);
+    }
 }
 
 static void _power_off(void)
@@ -39,6 +47,10 @@ static void _power_off(void)
     if (brightness_mask && lv_obj_is_valid(brightness_mask))
     {
         lv_obj_add_flag(brightness_mask, LV_OBJ_FLAG_HIDDEN);
+    }
+    else
+    {
+        eos_headless_display_set_power(false);
     }
 }
 

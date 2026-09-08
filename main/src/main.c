@@ -39,6 +39,9 @@
 #include "script_engine_core.h"
 #include "eos_port_vibrator.h"
 #include "eos_port_display.h"
+#include "eos_headless_display.h"
+#include "eos_headless_ipc.h"
+#include "eos_headless_websocket.h"
 #include "eos_port_power.h"
 #include "eos_port_time.h"
 #include "eos_port_battery.h"
@@ -47,6 +50,7 @@
 #include "eos_port_sensor.h"
 #include "eos_service_sensor.h"
 #include "eos_dev_battery.h"
+#include "eos_touch.h"
 #include "eos_diag.h"
 #include "eos_esh_vscode.h"
 
@@ -86,6 +90,12 @@
 
 // Variables
 lv_obj_t *brightness_mask = NULL;
+
+#ifndef __EMSCRIPTEN__
+static bool s_headless_mode;
+static const char *s_headless_socket_path;
+static uint16_t s_headless_websocket_port;
+#endif
 
 #ifndef __EMSCRIPTEN__
 #define EOS_LOG_LATEST_FILE "tmp/latest.log"
@@ -236,6 +246,35 @@ static void _init_log_file(void)
 // Function Implementations
 static lv_display_t *hal_init(int32_t w, int32_t h);
 
+#ifndef __EMSCRIPTEN__
+static void _parse_native_arguments(int argc, char **argv)
+{
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--headless") == 0)
+        {
+            s_headless_mode = true;
+        }
+        else if (strcmp(argv[i], "--ipc-socket") == 0 && i + 1 < argc)
+        {
+            s_headless_socket_path = argv[++i];
+        }
+        else if (strncmp(argv[i], "--ipc-socket=", 14) == 0)
+        {
+            s_headless_socket_path = argv[i] + 14;
+        }
+        else if (strcmp(argv[i], "--ws-port") == 0 && i + 1 < argc)
+        {
+            s_headless_websocket_port = (uint16_t)strtoul(argv[++i], NULL, 10);
+        }
+        else if (strncmp(argv[i], "--ws-port=", 10) == 0)
+        {
+            s_headless_websocket_port = (uint16_t)strtoul(argv[i] + 10, NULL, 10);
+        }
+    }
+}
+#endif
+
 extern void freertos_main(void);
 
 #ifdef __EMSCRIPTEN__
@@ -266,8 +305,12 @@ static EM_BOOL eos_main_loop_frame(double time, void *user_data)
 
 int main(int argc, char **argv)
 {
-    (void)argc; /*Unused*/
-    (void)argv; /*Unused*/
+#ifndef __EMSCRIPTEN__
+    _parse_native_arguments(argc, argv);
+#else
+    (void)argc;
+    (void)argv;
+#endif
 
     /*Initialize LVGL*/
     lv_init();
@@ -282,7 +325,17 @@ int main(int argc, char **argv)
 #endif
 
     /*Initialize the HAL (display, input devices, tick) for LVGL*/
-    hal_init(WINDOW_WIDTH, WINDOW_HEIGHT);
+#ifndef __EMSCRIPTEN__
+    const int32_t hal_width = s_headless_mode ? EOS_DISPLAY_WIDTH : WINDOW_WIDTH;
+    const int32_t hal_height = s_headless_mode ? EOS_DISPLAY_HEIGHT : WINDOW_HEIGHT;
+#else
+    const int32_t hal_width = WINDOW_WIDTH;
+    const int32_t hal_height = WINDOW_HEIGHT;
+#endif
+    if (!hal_init(hal_width, hal_height))
+    {
+        return EXIT_FAILURE;
+    }
 
     eos_fs_set_root(EOS_SYS_ROOT_DIR);
 
@@ -299,6 +352,9 @@ int main(int argc, char **argv)
     eos_init();
 
 #ifndef __EMSCRIPTEN__
+    /* ESH uses the debugger's non-blocking terminal stdin/stdout.  It is
+     * independent of the headless framebuffer WebSocket, so keep it active
+     * for both SDL and headless Native runs. */
     if (eos_esh_vscode_init() != EOS_OK)
     {
         EOS_LOG_W("VSCode terminal frontend initialization failed");
@@ -328,14 +384,37 @@ int main(int argc, char **argv)
 #ifdef __EMSCRIPTEN__
     emscripten_request_animation_frame_loop(eos_main_loop_frame, NULL);
 #else
-    while (1)
+    while (!s_headless_mode || !eos_headless_ipc_should_exit())
     {
+        if (s_headless_mode)
+        {
+            eos_headless_ipc_poll();
+            eos_headless_websocket_poll();
+        }
         eos_esh_vscode_poll();
         uint32_t d = eos_main_loop();
 #if EOS_ENABLE_DIAG
         eos_diag_periodic_sample();
 #endif
+        if (s_headless_mode)
+        {
+            eos_headless_ipc_poll();
+            eos_headless_websocket_poll();
+        }
+        /* Headless transports use non-blocking sockets and may need several
+         * polls to finish a full RGB565 frame.  LVGL can return
+         * LV_NO_TIMER_READY when no UI timer is pending; do not turn that
+         * value into a multi-hour sleep and stall the WebSocket. */
+        if (s_headless_mode && d > 5U)
+        {
+            d = 5U;
+        }
         usleep(d * 1000);
+    }
+    if (s_headless_mode)
+    {
+        eos_headless_websocket_shutdown();
+        eos_headless_ipc_shutdown();
     }
 #endif
     return 0;
@@ -507,6 +586,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_indev_t *mouse = lv_sdl_mouse_create();
     lv_indev_set_group(mouse, lv_group_get_default());
     lv_indev_set_display(mouse, disp);
+    (void)eos_touch_bind_indev(mouse);
     lv_display_set_default(disp);
 
 #if LV_USE_MOUSE_CURSOR_IMAGE
@@ -649,6 +729,14 @@ static void _tab_switch_cb(lv_event_t *e)
 
 static lv_display_t *hal_init(int32_t w, int32_t h)
 {
+#ifndef __EMSCRIPTEN__
+    if (s_headless_mode)
+    {
+        lv_group_set_default(lv_group_create());
+        return eos_headless_display_create(w, h, s_headless_socket_path, s_headless_websocket_port);
+    }
+#endif
+
     lv_group_set_default(lv_group_create());
 
     lv_display_t *disp = lv_sdl_window_create(w, h);

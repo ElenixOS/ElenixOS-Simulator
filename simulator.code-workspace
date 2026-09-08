@@ -14,7 +14,8 @@
 			"ms-vscode.cpptools-themes", // general C/C++ theme
 			"ms-vscode.cmake-tools", // cmake support
 			"vadimcn.vscode-lldb", // interactive native debugging in the integrated terminal
-			"ritwickdey.liveserver" // static hosting for WASM output
+			"ritwickdey.liveserver", // static hosting for WASM output
+			"elenixos.elenixos-toolkit" // Native headless Simulator Webview integration
 		],
 		"unwantedRecommendations": []
 	},
@@ -288,10 +289,16 @@
 				"type": "lldb",
 				"request": "launch",
 				"program": "${workspaceFolder}/bin/main",
-				"args": [],
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"terminal": "integrated",
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
 				"windows": {
 					"program": "${workspaceFolder}\\bin\\main.exe"
 				}
@@ -301,11 +308,17 @@
 				"type": "cppdbg",
 				"request": "launch",
 				"program": "${workspaceFolder}/bin/main",
-				"args": [],
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
 				"externalConsole": false,
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
 				"linux": {
 					"MIMode": "gdb",
 					"miDebuggerPath": "/usr/bin/gdb"
@@ -324,12 +337,23 @@
 				"type": "cppdbg",
 				"request": "launch",
 				"program": "${workspaceFolder}/bin/main",
-				"args": [],
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
 				"externalConsole": false,
-				"MIMode": "lldb"
+				"MIMode": "lldb",
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe",
+					"MIMode": "gdb",
+					"miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe"
+				}
 			},
 			{
 				"name": "Debug ElenixOS WASM (Chrome)",
