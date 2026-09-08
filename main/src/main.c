@@ -19,7 +19,9 @@
 #include <emscripten/html5.h>
 #include <emscripten/emscripten.h>
 #endif
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+#include <SDL.h>
+#else
 #include <SDL2/SDL.h>
 #endif
 #include "lvgl/lvgl.h"
@@ -96,6 +98,7 @@ static bool s_headless_mode;
 static const char *s_headless_socket_path;
 static uint16_t s_headless_websocket_port;
 #endif
+static bool s_sdl_mousewheel_event_watch_registered;
 
 #ifndef __EMSCRIPTEN__
 #define EOS_LOG_LATEST_FILE "tmp/latest.log"
@@ -549,15 +552,40 @@ EMSCRIPTEN_KEEPALIVE const char *eos_wasm_read_app_main_js(const char *app_id)
 }
 #endif
 
-static void _mouse_wheel_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
+static int _sdl_mousewheel_event_watch(void *user_data, SDL_Event *event)
 {
-    static lv_indev_state_t prev_state = LV_INDEV_STATE_RELEASED;
+    LV_UNUSED(user_data);
 
-    eos_crown_encoder_report(data->enc_diff);
-    if (data->state == LV_INDEV_STATE_PRESSED && prev_state == LV_INDEV_STATE_RELEASED)
-        eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
-    prev_state = data->state;
-    LV_UNUSED(indev);
+    switch (event->type)
+    {
+        case SDL_MOUSEWHEEL:
+#ifdef __EMSCRIPTEN__
+            if (event->wheel.y < 0)
+                eos_crown_encoder_report(1);
+            else if (event->wheel.y > 0)
+                eos_crown_encoder_report(-1);
+#else
+            eos_crown_encoder_report((eos_crown_encoder_diff_t)-event->wheel.y);
+#endif
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            if (event->button.button == SDL_BUTTON_MIDDLE)
+                eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+            break;
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+static void _register_sdl_mousewheel_event_watch(void)
+{
+    if (s_sdl_mousewheel_event_watch_registered)
+        return;
+
+    SDL_AddEventWatch(_sdl_mousewheel_event_watch, NULL);
+    s_sdl_mousewheel_event_watch_registered = true;
 }
 
 /**
@@ -570,6 +598,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_group_set_default(lv_group_create());
 
     lv_display_t *disp = lv_sdl_window_create(w, h);
+    _register_sdl_mousewheel_event_watch();
     lv_sdl_window_set_resizeable(disp, false);
     lv_sdl_window_set_title(disp, "ElenixOS Simulator");
 
@@ -599,7 +628,6 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
     lv_indev_set_display(mousewheel, disp);
-    lv_sdl_mousewheel_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
@@ -740,6 +768,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_group_set_default(lv_group_create());
 
     lv_display_t *disp = lv_sdl_window_create(w, h);
+    _register_sdl_mousewheel_event_watch();
     lv_sdl_window_set_resizeable(disp, true);
     lv_sdl_window_set_title(disp, "ElenixOS Simulator");
 
@@ -773,7 +802,6 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
     lv_indev_set_display(mousewheel, disp);
     // lv_indev_set_group(mousewheel, lv_group_get_default());
-    lv_sdl_mousewheel_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
