@@ -26,6 +26,18 @@ static uint32_t _frame_count = 0;
 static uint32_t _last_fps_tick = 0;
 static uint32_t _cached_fps = 0;
 
+static const eos_top_layer_slot_t _system_slots[] = {
+    EOS_TOP_LAYER_SYSTEM_TOUCH_STATUS,
+    EOS_TOP_LAYER_SYSTEM_TOUCH_MARKER,
+    EOS_TOP_LAYER_SYSTEM_TOUCH_DIAGNOSTIC,
+    EOS_TOP_LAYER_SYSTEM_TOAST,
+    EOS_TOP_LAYER_SYSTEM_CROWN,
+    EOS_TOP_LAYER_SYSTEM_OBJS,
+    EOS_TOP_LAYER_SYSTEM_FPS,
+    EOS_TOP_LAYER_SYSTEM_ESH_CMD,
+    EOS_TOP_LAYER_SYSTEM_ERROR,
+};
+
 /* Function Implementations -----------------------------------*/
 
 /* -------------------------------------------------------------------
@@ -58,6 +70,16 @@ static uint32_t _count_layer(lv_obj_t *layer)
     if (!layer || !lv_obj_is_valid(layer))
         return 0;
     return _count_children(layer);
+}
+
+static uint32_t _count_system_slots(void)
+{
+    uint32_t total = 0;
+    for (size_t i = 0; i < sizeof(_system_slots) / sizeof(_system_slots[0]); i++)
+    {
+        total += _count_layer(eos_overlay_layer_get(_system_slots[i]));
+    }
+    return total;
 }
 
 /**
@@ -103,20 +125,15 @@ void eos_diag_periodic_sample(void)
 
         lv_obj_t *screen = lv_screen_active();
         uint32_t objs_active = screen ? _count_children(screen) : 0;
-        uint32_t objs_snap = _count_layer(eos_overlay_get_snapshot_layer());
-        uint32_t objs_sys = _count_layer(lv_layer_sys());
+        uint32_t objs_snap = _count_layer(eos_overlay_layer_get(EOS_TOP_LAYER_ACTIVITY_SNAPSHOT));
+        uint32_t objs_sys = _count_system_slots();
         uint32_t timers = _count_timers();
         uint32_t anims = (uint32_t)lv_anim_count_running();
         uint32_t recents = eos_recent_apps_count();
 
-        EOS_LOG_I("[DIAG t=%" PRIu32 "] fps=%" PRIu32
-                  " lvgl_used=%" PRIu8 "%% frag=%" PRIu8 "%%"
+        EOS_LOG_I("[DIAG t=%" PRIu32 "] fps=%" PRIu32 " lvgl_used=%" PRIu8 "%% frag=%" PRIu8 "%%"
                   " free_big=%zu"
-                  " objs=%" PRIu32
-                  " snap=%" PRIu32
-                  " sys=%" PRIu32
-                  " timers=%" PRIu32
-                  " anims=%" PRIu32
+                  " objs=%" PRIu32 " snap=%" PRIu32 " sys=%" PRIu32 " timers=%" PRIu32 " anims=%" PRIu32
                   " recents=%" PRIu32,
                   now,
                   _cached_fps,
