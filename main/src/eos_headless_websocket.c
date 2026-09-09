@@ -416,9 +416,11 @@ static void _handle_text(const uint8_t *payload, size_t payload_size)
     char *number_end;
     char *x_text;
     char *y_text;
+    char *delta_text;
     char *action_end;
     long x;
     long y;
+    long delta;
     size_t copy_size = payload_size < sizeof(message) - 1U ? payload_size : sizeof(message) - 1U;
 
     memcpy(message, payload, copy_size);
@@ -450,6 +452,18 @@ static void _handle_text(const uint8_t *payload, size_t payload_size)
         }
         if (s_input_callback)
             s_input_callback(button_action, 0, 0, s_input_user_data);
+        return;
+    }
+    if (strstr(message, "\"type\":\"wheel\"") != NULL)
+    {
+        delta_text = strstr(message, "\"delta\":");
+        if (!delta_text)
+            return;
+        delta = strtol(delta_text + 8U, &number_end, 10);
+        if (number_end == delta_text + 8U || delta == 0L || delta < -32768L || delta > 32767L)
+            return;
+        if (s_input_callback)
+            s_input_callback(EOS_HEADLESS_WEBSOCKET_INPUT_WHEEL, (int32_t)delta, 0, s_input_user_data);
         return;
     }
     if (strstr(message, "\"type\":\"input\"") == NULL)

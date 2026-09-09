@@ -22,6 +22,7 @@ typedef enum
     EOS_HEADLESS_WEBSOCKET_BUTTON_CROWN_CLICK = 4,
     EOS_HEADLESS_WEBSOCKET_BUTTON_CROWN_LONG_PRESS = 5,
     EOS_HEADLESS_WEBSOCKET_BUTTON_SIDE_CLICK = 6,
+    EOS_HEADLESS_WEBSOCKET_INPUT_WHEEL = 7,
 } eos_headless_websocket_input_action_t;
 
 typedef void (*eos_headless_websocket_input_callback_t)(eos_headless_websocket_input_action_t action,

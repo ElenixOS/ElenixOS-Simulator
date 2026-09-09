@@ -133,6 +133,11 @@ static void _headless_websocket_input_callback(eos_headless_websocket_input_acti
                                                void *user_data)
 {
     (void)user_data;
+    if (action == EOS_HEADLESS_WEBSOCKET_INPUT_WHEEL)
+    {
+        eos_crown_encoder_scroll_report(x);
+        return;
+    }
     if (action >= EOS_HEADLESS_WEBSOCKET_BUTTON_CROWN_CLICK)
     {
         _headless_button_submit(action);
