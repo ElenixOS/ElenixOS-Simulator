@@ -68,19 +68,15 @@ for (let i = 0; i < SUITES.length; i++) {
 
 // ---- UI constants ----
 const SW = eos.DISPLAY_WIDTH;   // 390
-const SH = eos.DISPLAY_HEIGHT;  // 450
 const HEADER_H = 52;
 const PAD = 14;
 const GAP = 8;
 const ROW_H = 52;
 const BTN_H = 46;
 const STATS_H = 24;
-
-// Vertical layout: header → run-all button → stats → scroll list
-const BTN_Y    = HEADER_H + PAD;
-const STATS_Y  = BTN_Y + BTN_H + 6;
-const LIST_TOP = STATS_Y + STATS_H + PAD;
-const LIST_H   = SH - LIST_TOP - PAD;
+const SECTION_GAP = 6;
+const CONTENT_W = SW - PAD * 2;
+const LIST_H = eos.DISPLAY_HEIGHT - PAD * 2 - HEADER_H - BTN_H - STATS_H - SECTION_GAP * 3;
 
 // ---- Colors (refined dark theme) ----
 const C_BG       = lv.color.hex(0x000000);
@@ -110,10 +106,17 @@ const DEBOUNCE_MS = 300;
 
 function styleRow(btn) {
     btn.setStyleBgColor(C_SURFACE, lv.PART_MAIN);
+    btn.setStyleBgOpa(255, lv.PART_MAIN);
     btn.setStyleBorderWidth(0, lv.PART_MAIN);
     btn.setStyleRadius(14, lv.PART_MAIN);
     btn.setStyleShadowWidth(0, lv.PART_MAIN);
     btn.setStylePadAll(0, lv.PART_MAIN);
+    btn.setStylePadHor(PAD, lv.PART_MAIN);
+    btn.setStylePadColumn(GAP, lv.PART_MAIN);
+    btn.setLayout(lv.LAYOUT_FLEX);
+    btn.setFlexFlow(lv.FLEX_FLOW_ROW);
+    btn.setFlexAlign(lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_CENTER, lv.FLEX_ALIGN_START);
+    btn.removeFlag(lv.OBJ_FLAG_SCROLLABLE);
 }
 
 // ---- Update a single row's display ----
@@ -320,47 +323,54 @@ function buildUi() {
 
     // Root background
     let root = new lv.obj(view);
-    root.setSize(SW, SH);
-    root.setPos(0, 0);
+    root.setSize(SW, eos.DISPLAY_HEIGHT);
     root.setStyleBgColor(C_BG, lv.PART_MAIN);
+    root.setStyleBgOpa(255, lv.PART_MAIN);
     root.setStyleBorderWidth(0, lv.PART_MAIN);
     root.setStyleRadius(0, lv.PART_MAIN);
-    root.setStylePadAll(0, lv.PART_MAIN);
-    root.setStyleLayout(lv.LAYOUT_NONE, lv.PART_MAIN);
+    root.setStylePadAll(PAD, lv.PART_MAIN);
+    root.setStylePadRow(SECTION_GAP, lv.PART_MAIN);
+    root.setLayout(lv.LAYOUT_FLEX);
+    root.setFlexFlow(lv.FLEX_FLOW_COLUMN);
+    root.setFlexAlign(lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_START);
     root.removeFlag(lv.OBJ_FLAG_SCROLLABLE);
 
     // ---- Title bar ----
     let titleBar = new lv.obj(root);
-    titleBar.setSize(SW, HEADER_H);
-    titleBar.setPos(0, 0);
+    titleBar.setWidth(CONTENT_W);
+    titleBar.setHeight(HEADER_H);
     titleBar.setStyleBgColor(C_BG, lv.PART_MAIN);
+    titleBar.setStyleBgOpa(255, lv.PART_MAIN);
     titleBar.setStyleBorderWidth(0, lv.PART_MAIN);
     titleBar.setStyleRadius(0, lv.PART_MAIN);
     titleBar.setStylePadAll(0, lv.PART_MAIN);
     titleBar.setStyleBorderSide(0x04, lv.PART_MAIN);   // bottom
     titleBar.setStyleBorderColor(C_BORDER, lv.PART_MAIN);
     titleBar.setStyleBorderWidth(1, lv.PART_MAIN);
+    titleBar.setLayout(lv.LAYOUT_FLEX);
+    titleBar.setFlexFlow(lv.FLEX_FLOW_ROW);
+    titleBar.setFlexAlign(lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_CENTER, lv.FLEX_ALIGN_START);
     titleBar.removeFlag(lv.OBJ_FLAG_SCROLLABLE);
 
     let title = new lv.label(titleBar);
     title.setText('LVGL Test Suite');
     title.setStyleTextColor(C_TEXT, lv.PART_MAIN);
     title.setFontSize(eos.FONT_SIZE_MEDIUM);
-    title.align(lv.ALIGN_LEFT_MID, PAD, 0);
+    title.setFlexGrow(1);
+    title.removeFlag(lv.OBJ_FLAG_CLICKABLE);
 
     let suiteCount = new lv.label(titleBar);
     suiteCount.setText(SUITES.length + ' suites');
     suiteCount.setStyleTextColor(C_SUBTLE, lv.PART_MAIN);
     suiteCount.setFontSize(eos.FONT_SIZE_SMALL);
-    suiteCount.align(lv.ALIGN_RIGHT_MID, -PAD, 0);
+    suiteCount.removeFlag(lv.OBJ_FLAG_CLICKABLE);
 
     // ---- Run All button ----
-    let btnW = SW - PAD * 2;
-
     runAllBtn = new lv.button(root);
-    runAllBtn.setSize(btnW, BTN_H);
-    runAllBtn.setPos(PAD, BTN_Y);
+    runAllBtn.setWidth(CONTENT_W);
+    runAllBtn.setHeight(BTN_H);
     runAllBtn.setStyleBgColor(C_ACCENT, lv.PART_MAIN);
+    runAllBtn.setStyleBgOpa(255, lv.PART_MAIN);
     runAllBtn.setStyleBorderWidth(0, lv.PART_MAIN);
     runAllBtn.setStyleRadius(14, lv.PART_MAIN);
     runAllBtn.setStyleShadowWidth(0, lv.PART_MAIN);
@@ -376,26 +386,29 @@ function buildUi() {
         runAll();
     }, lv.EVENT_CLICKED, null);
 
-    // ---- Stats bar (positioned above the scroll list, NOT behind it) ----
+    // ---- Stats bar ----
     statsLabel = new lv.label(root);
-    statsLabel.setSize(btnW, STATS_H);
-    statsLabel.setPos(PAD, STATS_Y);
-    statsLabel.setText('Ready · ' + SUITES.length + ' suites');
+    statsLabel.setWidth(CONTENT_W);
+    statsLabel.setHeight(STATS_H);
+    statsLabel.setText('Re1ady · ' + SUITES.length + ' suites');
     statsLabel.setStyleTextColor(C_SUBTLE, lv.PART_MAIN);
     statsLabel.setFontSize(eos.FONT_SIZE_SMALL);
     statsLabel.removeFlag(lv.OBJ_FLAG_SCROLLABLE);
 
     // ---- Scrollable list area (below stats) ----
-    let contentH = SUITES.length * (ROW_H + GAP);
-
     let scroll = new lv.obj(root);
-    scroll.setSize(SW - PAD * 2, LIST_H);
-    scroll.setPos(PAD, LIST_TOP);
+    scroll.setWidth(CONTENT_W);
+    scroll.setHeight(LIST_H);
     scroll.setStyleBgColor(C_BG, lv.PART_MAIN);
+    scroll.setStyleBgOpa(255, lv.PART_MAIN);
     scroll.setStyleBorderWidth(0, lv.PART_MAIN);
     scroll.setStyleRadius(0, lv.PART_MAIN);
     scroll.setStylePadAll(0, lv.PART_MAIN);
     scroll.setStylePadBottom(PAD, lv.PART_MAIN);
+    scroll.setStylePadRow(GAP, lv.PART_MAIN);
+    scroll.setLayout(lv.LAYOUT_FLEX);
+    scroll.setFlexFlow(lv.FLEX_FLOW_COLUMN);
+    scroll.setFlexAlign(lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_START, lv.FLEX_ALIGN_START);
     scroll.addFlag(lv.OBJ_FLAG_SCROLLABLE);
     scroll.setScrollbarMode(lv.SCROLLBAR_MODE_OFF);
 
@@ -403,22 +416,19 @@ function buildUi() {
     let dotSize = 10;
     for (let i = 0; i < SUITES.length; i++) {
         let s = SUITES[i];
-        let rowY = i * (ROW_H + GAP);
-        let rowW = SW - PAD * 2;
-
+        eos.console.log("[test-ui] Adding suite row: " + s.key + " (" + s.name + ")");
         let row = new lv.button(scroll);
-        row.setSize(rowW, ROW_H);
-        row.setPos(0, rowY);
+        row.setWidth(CONTENT_W);
+        row.setHeight(ROW_H);
         styleRow(row);
-        // Explicitly ensure the row is clickable — critical inside scrollable parent
-        row.addFlag(lv.OBJ_FLAG_CLICKABLE);
+        // lv.button is clickable by default; no flag mutation is needed here.
 
         // Suite name label
         let nameLabel = new lv.label(row);
         nameLabel.setText(s.name);
         nameLabel.setStyleTextColor(C_TEXT, lv.PART_MAIN);
         nameLabel.setFontSize(eos.FONT_SIZE_SMALL);
-        nameLabel.align(lv.ALIGN_LEFT_MID, 14, 0);
+        nameLabel.setFlexGrow(1);
         // Label should not intercept clicks on the row button
         nameLabel.removeFlag(lv.OBJ_FLAG_CLICKABLE);
 
@@ -427,16 +437,15 @@ function buildUi() {
         countLabel.setText('');
         countLabel.setStyleTextColor(C_SUBTLE, lv.PART_MAIN);
         countLabel.setFontSize(eos.FONT_SIZE_SMALL - 2);
-        countLabel.align(lv.ALIGN_RIGHT_MID, -(dotSize + 18), 0);
         countLabel.removeFlag(lv.OBJ_FLAG_CLICKABLE);
 
         // Status dot (rightmost)
         let dot = new lv.obj(row);
         dot.setSize(dotSize, dotSize);
         dot.setStyleBgColor(C_IDLE, lv.PART_MAIN);
+        dot.setStyleBgOpa(255, lv.PART_MAIN);
         dot.setStyleBorderWidth(0, lv.PART_MAIN);
         dot.setStyleRadius(dotSize / 2, lv.PART_MAIN);
-        dot.align(lv.ALIGN_RIGHT_MID, -12, 0);
         dot.removeFlag(lv.OBJ_FLAG_CLICKABLE);
 
         // Store references
@@ -459,15 +468,9 @@ function buildUi() {
             }
             row.addEventCb(handleClick, lv.EVENT_CLICKED, null);
         })(s.key);
-    }
 
-    // Force scroll area to know about all content
-    let spacer = new lv.obj(scroll);
-    spacer.setSize(1, contentH);
-    spacer.setPos(0, 0);
-    spacer.setStyleBgOpa(0, lv.PART_MAIN);
-    spacer.setStyleBorderWidth(0, lv.PART_MAIN);
-    spacer.removeFlag(lv.OBJ_FLAG_CLICKABLE);
+        eos.console.log("[test-ui] Added suite row: " + s.key + " (" + s.name + ")");
+    }
 
     refreshRunAllState();
 }

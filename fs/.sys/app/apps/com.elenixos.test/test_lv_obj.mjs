@@ -575,6 +575,11 @@ export function suite() {
     test("fadeOut", () => obj.fadeOut(200, 0));
 
     /* ---- 11. Flags ------------------------------------------------- */
+    test("flag constants are LVGL masks", () => {
+        if (lv.OBJ_FLAG_HIDDEN !== 1 || lv.OBJ_FLAG_CLICKABLE !== 2 || lv.OBJ_FLAG_SCROLLABLE !== 16) {
+            throw new Error("flag constants are not bit masks");
+        }
+    });
     test("addFlag(CLICKABLE)", () => obj.addFlag(lv.OBJ_FLAG_CLICKABLE));
     test("hasFlag(CLICKABLE) -> true", () => {
         if (!obj.hasFlag(lv.OBJ_FLAG_CLICKABLE)) throw new Error("expected true");
