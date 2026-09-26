@@ -20,14 +20,13 @@ You can download SDL from https://www.libsdl.org/
 
 #### Linux
 
-Copy below in the Terminal:
-For Ubuntu
+For Ubuntu, run:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y build-essential libsdl2-dev cmake
 ```
 
-For ArchLinux
+For Arch Linux, run:
 
 ```bash
 sudo pacman -Syu && sudo pacman -S sdl2 libsdl2-devel sdl2_mixer sdl2-devel base-devel gcc make
@@ -37,8 +36,30 @@ sudo pacman -Syu && sudo pacman -S sdl2 libsdl2-devel sdl2_mixer sdl2-devel base
 
 The usage guide has been moved to the ElenixOS documentation site.
 
-Please read:
-https://docs.elenixos.com/docs/simulator/overview
+Please read the [Simulator overview](https://docs.elenixos.com/docs/simulator/overview).
+
+The current Watchface Metric and complex-widget API is documented in [`docs/watchface_widget_api.md`](docs/watchface_widget_api.md).
+
+## LVGL version policy
+
+ElenixOS currently uses the LVGL 9.6.0 release as its integration baseline.
+Updating the LVGL submodule requires regenerating `lvgl/scripts/gen_json/output/lvgl.json` and `ElenixOS/src/script_engine/sni/sni_api/lv/sni_api_lv.c` from the selected LVGL 9.6 release.
+
+To update the integration, check out the selected LVGL 9.6 release tag, then regenerate the API description and SNI bindings:
+
+```bash
+python3 lvgl/scripts/gen_json/gen_json.py \
+    --output-path lvgl/scripts/gen_json/output
+python3 ElenixOS/scripts/sni/gen_lvgl_desc.py \
+    --api-table ElenixOS/scripts/sni/config/api_table.json \
+    --output ElenixOS/src/script_engine/sni/sni_api/lv/sni_api_lv.c \
+    --lvgl-json lvgl/scripts/gen_json/output/lvgl.json \
+    --lv-types ElenixOS/scripts/sni/config/lv_types.json \
+    --lvgl-version-header lvgl/include/lvgl/lv_version.h
+```
+
+The default generation keeps LVGL Doxygen descriptions so the generated SNI wrappers retain API comments.
+`--no-docstrings` remains available only as an explicit metadata-only fast path; it is not used by the checked-in regeneration command.
 
 ## WASM publish to GitHub Pages
 
@@ -68,7 +89,7 @@ If your page is hosted under the same GitHub Pages site, you can link directly:
 <a href="/ElenixOS-Simulator/wasm/latest/main.html" target="_blank" rel="noopener">Open ElenixOS Simulator</a>
 ```
 
-Or embed it in an iframe:
+You can also embed it in an iframe:
 
 ```html
 <iframe
@@ -81,9 +102,7 @@ Or embed it in an iframe:
 ></iframe>
 ```
 
-If your page is hosted elsewhere, replace with the full absolute URL:
-
-`https://<owner>.github.io/<repo>/wasm/latest/main.html`
+If your page is hosted elsewhere, use this full absolute URL: `https://<owner>.github.io/<repo>/wasm/latest/main.html`.
 
 ## Build
 
@@ -97,29 +116,23 @@ cmake --build build
 
 ### Headless Native mode with VS Code Webview
 
-The Native Simulator also accepts `--headless` and does not create an SDL
-window. LVGL rendering, timers, animation, application logic, and the normal
-touch injection path continue to run. The headless display starts a loopback
-WebSocket server for the VS Code Webview and keeps the existing local IPC
-endpoint as a compatibility/control channel:
+The Native Simulator also accepts `--headless` and does not create an SDL window.
+LVGL rendering, timers, animation, application logic, and the normal touch injection path continue to run.
+The headless display starts a loopback WebSocket server for the VS Code Webview and keeps the existing local IPC endpoint as a compatibility/control channel:
 
 ```bash
 ./bin/main --headless --ipc-socket /tmp/elenixos-simulator.sock
 ```
 
-The atomic `*.ready` marker contains the tokenized WebSocket URL. On
-macOS/Linux the compatibility endpoint is a Unix-domain socket; on Windows it
-is loopback TCP. The VS Code extension consumes the marker, opens the Webview
-automatically when a marked Native debug session starts, and removes the
-endpoint/marker when the session, Webview, or extension stops. The tracked
-`simulator.code-workspace` contains headless configurations for CodeLLDB and
-cppdbg on all three desktop platforms.
+The atomic `*.ready` marker contains the tokenized WebSocket URL.
+On macOS/Linux the compatibility endpoint is a Unix-domain socket; on Windows it is loopback TCP.
+The VS Code extension consumes the marker, opens the Webview automatically when a marked Native debug session starts, and removes the endpoint/marker when the session, Webview, or extension stops.
+The tracked `simulator.code-workspace` contains separate Native configurations for SDL windows and headless Webview sessions.
+Choose a configuration whose name ends in `(SDL window)` for a native window, or `(headless Webview)` for the Toolkit Webview.
 
-The Webview converts raw little-endian RGB565 WebSocket frames in a WebGL
-texture (with Canvas 2D fallback) and sends Pointer Events back as logical
-390x450 coordinates. The Simulator injects them through the existing
-`eos_touch_bind_indev` / `eos_touch_inject_*` backend. Dirty rectangles and
-compressed image frames are intentionally not part of the first version.
+The Webview converts raw little-endian RGB565 WebSocket frames in a WebGL texture (with Canvas 2D fallback) and sends Pointer Events back as logical 390x450 coordinates.
+The Simulator injects them through the existing `eos_touch_bind_indev` / `eos_touch_inject_*` backend.
+Dirty rectangles and compressed image frames are intentionally not part of the first version.
 
 ### WASM
 
@@ -144,22 +157,15 @@ make menuconfig-defaults
 cmake -B build && cmake --build build
 ```
 
-Each build directory has its own `.config` (e.g. `build/.config`,
-`build-wasm/.config`), allowing Native and WASM to use completely
-different kernel settings.
+Each build directory has its own `.config` (e.g. `build/.config`, `build-wasm/.config`), allowing Native and WASM to use completely different kernel settings.
 
-The generated header is written to `build/generated/eos_config_gen.h`
-and is automatically included during compilation.
+The generated header is written to `build/generated/eos_config_gen.h` and is automatically included during compilation.
 
-The simulator-level `Kconfig` composes the ElenixOS kernel configuration
-with platform-specific options from `main/src/config/Kconfig`. Platform
-port behavior is therefore configured by the consuming simulator project,
-not by the ElenixOS core.
+The simulator-level `Kconfig` composes the ElenixOS kernel configuration with platform-specific options from `main/src/config/Kconfig`.
+Platform port behavior is therefore configured by the consuming simulator project, not by the ElenixOS core.
 
-For example, to prevent the macOS simulator from changing the host system
-volume, open `make menuconfig`, go to **Platform Ports**, and disable
-**Enable macOS system volume control**. The setting is stored in the
-build-specific `build/.config` file.
+For example, to prevent the macOS simulator from changing the host system volume, open `make menuconfig`, go to **Platform Ports**, and disable **Enable macOS system volume control**.
+The setting is stored in the build-specific `build/.config` file.
 
 ### Linux
 
@@ -193,7 +199,7 @@ It requires a working version of GCC, GDB and make in your path.
 
 To allow debugging inside VSCode you will also require a GDB [extension](https://marketplace.visualstudio.com/items?itemName=webfreak.debug) or other suitable debugger. All the requirements, build and debug settings have been pre-configured in the [.workspace](simulator.code-workspace) file.
 
-On Linux, macOS, and Windows, use **Debug ElenixOS with CodeLLDB (integrated terminal)**. It requires the recommended `vadimcn.vscode-lldb` extension and keeps ESH input/output in VSCode instead of opening an external terminal for every debug session. This is especially important on macOS, where the alternative may create a new Terminal.app window for each debug session. The existing `cppdbg` configurations remain available as compatibility options. Do not run `codelldb-launch` manually; it only works while the CodeLLDB adapter started by VSCode is listening.
+On Linux, macOS, and Windows, use **Debug ElenixOS with CodeLLDB (headless Webview)** when you want the Simulator Webview and ESH input/output in VSCode. It requires the recommended `vadimcn.vscode-lldb` extension. Choose **Debug ElenixOS with CodeLLDB (SDL window)** when you want the normal native window. The existing `cppdbg` configurations remain available as compatibility options. Do not run `codelldb-launch` manually; it only works while the CodeLLDB adapter started by VSCode is listening.
 
 ESH requires a real interactive stdin/stdout terminal. The headless Native path keeps ESH active alongside the framebuffer WebSocket; on Windows it supports both CodeLLDB pipe input and a native console without blocking the LVGL loop. The `cppdbg`/MI-based configurations in this workspace are intended for non-interactive debugging: on macOS, `lldb-mi` cannot reliably provide an integrated interactive terminal, while an external console may create a separate Terminal.app window; the VSCode Debug Console does not provide stdin for the debuggee. Therefore, use CodeLLDB when you need to type ESH commands. If the program only needs breakpoints, stepping, variables, or log output, you may use the existing GDB or LLDB configurations without CodeLLDB.
 
