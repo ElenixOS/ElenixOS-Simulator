@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <string.h>
 #include "lvgl/lvgl.h"
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
@@ -23,7 +22,6 @@
 #endif
 #include "eos_config.h"
 #include "mac_api.h"
-#include "eos_service_sensor.h"
 
 // Macros and Definitions
 
@@ -33,15 +31,6 @@ typedef struct eos_sem_t eos_sem_t;
 struct eos_sem_t
 {
     pthread_mutex_t mutex;
-};
-
-static eos_dev_sensor_ops_t _sensor_ops = {
-    .init = NULL,
-    .deinit = NULL,
-    .enable = NULL,
-    .disable = NULL,
-    .set_sample_rate = NULL,
-    .get_sample_rate = NULL,
 };
 
 // Function Implementations
@@ -140,134 +129,7 @@ void eos_bluetooth_disable(void)
     return;
 }
 
-void *_thread_sensor(void *arg)
-{
-    eos_sensor_type_t type = *(eos_sensor_type_t *)arg;
-    eos_sensor_raw_data_t s = {.type = type, .timestamp = eos_tick_get()};
-
-    switch (type)
-    {
-    case EOS_SENSOR_TYPE_ACCE:
-        s.data.acce.x = (rand() % 4000) - 2000;
-        s.data.acce.y = (rand() % 4000) - 2000;
-        s.data.acce.z = (rand() % 4000) - 2000;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_GYRO:
-        s.data.gyro.x = (rand() % 500) - 250;
-        s.data.gyro.y = (rand() % 500) - 250;
-        s.data.gyro.z = (rand() % 500) - 250;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_MAG:
-        s.data.mag.x = (rand() % 2000) - 1000;
-        s.data.mag.y = (rand() % 2000) - 1000;
-        s.data.mag.z = (rand() % 2000) - 1000;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_TEMP:
-        s.data.temp.temp = (rand() % 3500) + 1500;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_BARO:
-        s.data.baro.pressure = 101325 + (rand() % 2000 - 1000);
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_LIGHT:
-        s.data.light.lux = rand() % 10000;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_PROXIMITY:
-        s.data.proximity.distance_mm = rand() % 500;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_HR:
-        s.data.hr.heart_rate = rand() % 100;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_SPO2:
-        s.data.spo2.spo2 = rand() % 100;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_ECG:
-        s.data.ecg.ecg = rand() % 1000;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_CAP:
-        s.data.cap.cap = rand() % 100;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_STEP:
-        s.data.step.steps += rand() % 5;
-        eos_sensor_notify(type, &s.data, s.timestamp);
-        break;
-
-    case EOS_SENSOR_TYPE_UNKNOWN:
-    default:
-        printf("Unknown sensor type: %d\n", type);
-        break;
-    }
-
-    return NULL;
-}
-
-void eos_sensor_read_async(eos_sensor_type_t type)
-{
-#ifdef __EMSCRIPTEN__
-    eos_sensor_type_t local_type = type;
-    _thread_sensor(&local_type);
-    return;
-#else
-    pthread_t thread;
-
-    eos_sensor_type_t *arg = malloc(sizeof(eos_sensor_type_t));
-    *arg = type;
-
-    int ret = pthread_create(&thread, NULL, _thread_sensor, arg);
-    if (ret != 0)
-    {
-        perror("pthread_create failed");
-        free(arg);
-    }
-#endif
-}
-
-void eos_sensor_read_sync(eos_sensor_type_t type, eos_sensor_raw_data_t *out)
-{
-    if (!out)
-        return;
-
-    eos_sensor_raw_data_t sensor = {.type = type, .timestamp = eos_tick_get()};
-
-    switch (type)
-    {
-    case EOS_SENSOR_TYPE_HR:
-        sensor.data.hr.heart_rate = rand() % 100;
-        break;
-    case EOS_SENSOR_TYPE_SPO2:
-        sensor.data.spo2.spo2 = rand() % 100;
-        break;
-    default:
-        break;
-    }
-
-    memcpy(out, &sensor, sizeof(eos_sensor_raw_data_t));
-}
-
 void eos_locate_phone(void)
 {
     printf("Locate phone\n");
 }
-
-

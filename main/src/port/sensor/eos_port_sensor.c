@@ -12,8 +12,8 @@
  *    data is suppressed during warm-up but the device remains in
  *    DEV_STATE_READY (no BUSY transition to avoid breaking synchronous
  *    test expectations).
- *  - All hardware events (init/deinit/enable/disable/rate-change/data-ready)
- *    are logged with timestamps and sensor identifiers.
+ *  - Initialization and configuration events are logged; recurring sampling
+ *    and measurement-driven enable/disable transitions stay quiet.
  *
  * Architecture:
  *  _sensors[]           Per-sensor config and waveform state (10 types)
@@ -74,6 +74,11 @@ typedef struct
 
 typedef struct
 {
+    float phase; /**< Pulse phase */
+} _ppg_wave_t;
+
+typedef struct
+{
     float phase; /**< Diurnal cycle phase */
 } _env_wave_t; /**< Light, temperature, barometer */
 
@@ -81,6 +86,7 @@ typedef union
 {
     _imu_wave_t imu;
     _hr_wave_t hr;
+    _ppg_wave_t ppg;
     _env_wave_t env;
     /* step / proximity are stateless (use rand or monotonic counters) */
 } _wave_state_t;
@@ -102,15 +108,15 @@ typedef struct _sensor_config_t
     eos_sensor_data_t debug_data; /**< Fixed debug data when debug_fixed is true */
     _wave_state_t wave; /**< Per-category waveform state */
     eos_dev_sensor_t *dev; /**< Registered device handle (NULL if none) */
+    eos_sensor_data_t current_data; /**< Most recently generated port sample */
+    bool has_current_data; /**< Current data has been generated or fixed */
 } _sensor_config_t;
 
 /* ========================================================================
  *  Data Generators (waveform synthesis + noise)
  * ======================================================================== */
 
-/** @brief Accelerometer — walking motion simulation.
- *  X/Y: ~2 Hz oscillation at ±500 mg with 2 % noise.
- *  Z:   ~1 Hz ripple on 1 g static gravity. */
+/** @brief Accelerometer — SI acceleration in milli-m/s^2. */
 static eos_sensor_data_t _gen_acce(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -119,13 +125,13 @@ static eos_sensor_data_t _gen_acce(_wave_state_t *ws)
     w->phase_x = _wrap_phase(w->phase_x + w->freq_x * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_y = _wrap_phase(w->phase_y + w->freq_y * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_z = _wrap_phase(w->phase_z + w->freq_z * 2.0f * M_PI * dt, 2.0f * M_PI);
-    d.acce.x = (int16_t)(500.0f * sinf(w->phase_x) + RAND_RANGE(-10, 10));
-    d.acce.y = (int16_t)(500.0f * sinf(w->phase_y) + RAND_RANGE(-10, 10));
-    d.acce.z = (int16_t)(1000.0f + 200.0f * sinf(w->phase_z) + RAND_RANGE(-10, 10));
+    d.acce.x = (int32_t)(1000.0f * sinf(w->phase_x) + RAND_RANGE(-10, 10));
+    d.acce.y = (int32_t)(1000.0f * sinf(w->phase_y) + RAND_RANGE(-10, 10));
+    d.acce.z = (int32_t)(9806.65f + 200.0f * sinf(w->phase_z) + RAND_RANGE(-10, 10));
     return d;
 }
 
-/** @brief Gyroscope — wrist rotation simulation (±100 dps). */
+/** @brief Gyroscope — angular rate in milli-degrees per second. */
 static eos_sensor_data_t _gen_gyro(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -134,13 +140,13 @@ static eos_sensor_data_t _gen_gyro(_wave_state_t *ws)
     w->phase_x = _wrap_phase(w->phase_x + w->freq_x * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_y = _wrap_phase(w->phase_y + w->freq_y * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_z = _wrap_phase(w->phase_z + w->freq_z * 2.0f * M_PI * dt, 2.0f * M_PI);
-    d.gyro.x = (int16_t)(100.0f * sinf(w->phase_x) + RAND_RANGE(-5, 5));
-    d.gyro.y = (int16_t)(100.0f * sinf(w->phase_y) + RAND_RANGE(-5, 5));
-    d.gyro.z = (int16_t)(100.0f * sinf(w->phase_z) + RAND_RANGE(-5, 5));
+    d.gyro.x = (int32_t)(100000.0f * sinf(w->phase_x) + RAND_RANGE(-500, 500));
+    d.gyro.y = (int32_t)(100000.0f * sinf(w->phase_y) + RAND_RANGE(-500, 500));
+    d.gyro.z = (int32_t)(100000.0f * sinf(w->phase_z) + RAND_RANGE(-500, 500));
     return d;
 }
 
-/** @brief Magnetometer — Earth field (~300 mG) with slow orientation drift. */
+/** @brief Magnetometer — Earth field in nano-tesla. */
 static eos_sensor_data_t _gen_mag(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -150,13 +156,13 @@ static eos_sensor_data_t _gen_mag(_wave_state_t *ws)
     w->phase_x = _wrap_phase(w->phase_x + w->freq_x * 0.1f * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_y = _wrap_phase(w->phase_y + w->freq_y * 0.1f * 2.0f * M_PI * dt, 2.0f * M_PI);
     w->phase_z = _wrap_phase(w->phase_z + w->freq_z * 0.1f * 2.0f * M_PI * dt, 2.0f * M_PI);
-    d.mag.x = (int16_t)(300.0f * sinf(w->phase_x) + RAND_RANGE(-10, 10));
-    d.mag.y = (int16_t)(300.0f * sinf(w->phase_y) + RAND_RANGE(-10, 10));
-    d.mag.z = (int16_t)(300.0f * sinf(w->phase_z) + RAND_RANGE(-10, 10));
+    d.mag.x = (int32_t)(30000.0f * sinf(w->phase_x) + RAND_RANGE(-100, 100));
+    d.mag.y = (int32_t)(30000.0f * sinf(w->phase_y) + RAND_RANGE(-100, 100));
+    d.mag.z = (int32_t)(30000.0f * sinf(w->phase_z) + RAND_RANGE(-100, 100));
     return d;
 }
 
-/** @brief Heart Rate — slowly-drifting base (75±15 bpm) + beat-to-beat variation. */
+/** @brief Heart Rate — derived BPM result, unscaled. */
 static eos_sensor_data_t _gen_hr(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -167,7 +173,22 @@ static eos_sensor_data_t _gen_hr(_wave_state_t *ws)
     return d;
 }
 
-/** @brief SpO2 — 95-100 % with slow variation. */
+/** @brief Standard optical source data for custom heart-rate algorithms. */
+static eos_sensor_data_t _gen_ppg(_wave_state_t *ws)
+{
+    eos_sensor_data_t d = {0};
+    _ppg_wave_t *w = &ws->ppg;
+    const float dt = 1.0f / 50.0f;
+    const float beat_hz = 1.25f;
+    w->phase = _wrap_phase(w->phase + beat_hz * 2.0f * M_PI * dt, 2.0f * M_PI);
+
+    float pulse = sinf(w->phase);
+    d.ppg.ir = (uint32_t)(70000.0f + 12000.0f * pulse + RAND_RANGE(-250, 250));
+    d.ppg.red = (uint32_t)(52000.0f + 7000.0f * pulse + RAND_RANGE(-180, 180));
+    return d;
+}
+
+/** @brief SpO2 — percentage result, unscaled, 95-100 in the simulator. */
 static eos_sensor_data_t _gen_spo2(_wave_state_t *ws)
 {
     (void)ws;
@@ -176,7 +197,7 @@ static eos_sensor_data_t _gen_spo2(_wave_state_t *ws)
     return d;
 }
 
-/** @brief Ambient Light — diurnal cycle 0-10000 lux + noise. */
+/** @brief Ambient Light — illuminance in lux, no scaling. */
 static eos_sensor_data_t _gen_light(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -187,7 +208,7 @@ static eos_sensor_data_t _gen_light(_wave_state_t *ws)
     return d;
 }
 
-/** @brief Proximity — mostly far, occasionally near (hand/wrist detection). */
+/** @brief Proximity — distance in millimeters, no scaling. */
 static eos_sensor_data_t _gen_proximity(_wave_state_t *ws)
 {
     (void)ws;
@@ -203,7 +224,7 @@ static eos_sensor_data_t _gen_proximity(_wave_state_t *ws)
     return d;
 }
 
-/** @brief ECG — synthetic raw waveform around mid-scale. */
+/** @brief ECG — synthetic source counts; no physical voltage conversion. */
 static eos_sensor_data_t _gen_ecg(_wave_state_t *ws)
 {
     eos_sensor_data_t d = {0};
@@ -213,12 +234,12 @@ static eos_sensor_data_t _gen_ecg(_wave_state_t *ws)
     return d;
 }
 
-/** @brief Skin Temperature — 32-37 °C (3200-3700 hundredths). */
+/** @brief Skin Temperature — milli-degrees Celsius. */
 static eos_sensor_data_t _gen_temp(_wave_state_t *ws)
 {
     (void)ws;
     eos_sensor_data_t d = {0};
-    d.temp.temp = RAND_RANGE(3200, 3700);
+    d.temp.temp = RAND_RANGE(32000, 37000);
     return d;
 }
 
@@ -231,7 +252,7 @@ static eos_sensor_data_t _gen_baro(_wave_state_t *ws)
     return d;
 }
 
-/** @brief Capacitance — low-noise touch/proximity raw value. */
+/** @brief Capacitance — source counts; no physical capacitance conversion. */
 static eos_sensor_data_t _gen_cap(_wave_state_t *ws)
 {
     (void)ws;
@@ -240,7 +261,7 @@ static eos_sensor_data_t _gen_cap(_wave_state_t *ws)
     return d;
 }
 
-/** @brief Step Counter — monotonic, occasionally increments by 1-3 steps. */
+/** @brief Step Counter — monotonic accumulated count, not a delta/rate. */
 static eos_sensor_data_t _gen_step(_wave_state_t *ws)
 {
     (void)ws;
@@ -268,7 +289,8 @@ static eos_sensor_data_t _gen_step(_wave_state_t *ws)
  */
 
 #define DEFAULT_RATE_IMU 25 /* Accelerometer / Gyro / Mag */
-#define DEFAULT_RATE_PPG 1 /* HR / SpO2 — PPG sensors run slower */
+#define DEFAULT_RATE_PPG 50 /* Raw PPG channels */
+#define DEFAULT_RATE_HR 1 /* Derived heart-rate compatibility stream */
 #define DEFAULT_RATE_ENV 10 /* Light / Proximity */
 #define DEFAULT_RATE_SLOW 1 /* Temperature / Baro / Step */
 
@@ -312,7 +334,8 @@ static _sensor_config_t _sensors[] = {
      {0},
      {.imu = {0, 0, 0, 0.3f, 0.5f, 0.4f}},
      NULL},
-    {EOS_SENSOR_TYPE_HR, "HR", false, false, DEFAULT_RATE_PPG, 0, 0, _gen_hr, {0}, {.hr = {0}}, NULL},
+    {EOS_SENSOR_TYPE_HR, "HR", false, false, DEFAULT_RATE_HR, 0, 0, _gen_hr, {0}, {.hr = {0}}, NULL},
+    {EOS_SENSOR_TYPE_PPG, "PPG", false, false, DEFAULT_RATE_PPG, 0, 0, _gen_ppg, {0}, {.ppg = {0}}, NULL},
     {EOS_SENSOR_TYPE_SPO2, "SpO2", false, false, DEFAULT_RATE_PPG, 0, 0, _gen_spo2, {0}, {0}, NULL},
     {EOS_SENSOR_TYPE_LIGHT, "Light", false, false, DEFAULT_RATE_ENV, 0, 0, _gen_light, {0}, {.env = {0}}, NULL},
     {EOS_SENSOR_TYPE_PROXIMITY, "Proximity", false, false, DEFAULT_RATE_ENV, 0, 0, _gen_proximity, {0}, {0}, NULL},
@@ -396,9 +419,9 @@ static void _generic_init(eos_dev_sensor_t *dev)
     s->dev = dev;
     s->hw_enabled = false;
     s->warmup_remaining_ms = 0;
+    s->has_current_data = false;
 
     eos_dev_sensor_report_state(dev, DEV_STATE_READY);
-    printf("[PortSensor:%s] HW_INIT  | device ready, default ODR=%u Hz\n", s->type_name, s->sample_rate_hz);
 }
 
 static void _generic_deinit(eos_dev_sensor_t *dev)
@@ -412,7 +435,6 @@ static void _generic_deinit(eos_dev_sensor_t *dev)
     s->dev = NULL;
 
     eos_dev_sensor_report_state(dev, DEV_STATE_NONE);
-    printf("[PortSensor:%s] HW_DEINIT | device shutdown\n", s->type_name);
 }
 
 static void _generic_enable(eos_dev_sensor_t *dev)
@@ -422,19 +444,12 @@ static void _generic_enable(eos_dev_sensor_t *dev)
         return;
 
     if (s->hw_enabled)
-    {
-        printf("[PortSensor:%s] HW_ENABLE | already enabled, skipping\n", s->type_name);
         return;
-    }
 
     s->hw_enabled = true;
     s->warmup_remaining_ms = _warmup_ms(s->type);
-    s->last_poll_tick = 0; /* reset so first sample fires immediately after warm-up */
-
-    printf("[PortSensor:%s] HW_ENABLE | powering on, warm-up=%ums, ODR=%u Hz (state=READY)\n",
-           s->type_name,
-           s->warmup_remaining_ms,
-           s->sample_rate_hz);
+    /* Reset so the first sample fires immediately after warm-up. */
+    s->last_poll_tick = 0;
 }
 
 static void _generic_disable(eos_dev_sensor_t *dev)
@@ -444,16 +459,12 @@ static void _generic_disable(eos_dev_sensor_t *dev)
         return;
 
     if (!s->hw_enabled)
-    {
-        printf("[PortSensor:%s] HW_DISABLE | already disabled, skipping\n", s->type_name);
         return;
-    }
 
     s->hw_enabled = false;
     s->warmup_remaining_ms = 0;
 
     eos_dev_sensor_report_state(dev, DEV_STATE_READY);
-    printf("[PortSensor:%s] HW_DISABLE | powered off\n", s->type_name);
 }
 
 static void _generic_set_sample_rate(eos_dev_sensor_t *dev, uint32_t hz)
@@ -469,8 +480,6 @@ static void _generic_set_sample_rate(eos_dev_sensor_t *dev, uint32_t hz)
 
     s->sample_rate_hz = new_hz;
     s->last_poll_tick = 0; /* reset to apply new rate immediately */
-
-    printf("[PortSensor:%s] HW_CFG   | ODR changed: %u Hz → %u Hz\n", s->type_name, old_hz, s->sample_rate_hz);
 }
 
 static void _generic_get_sample_rate(eos_dev_sensor_t *dev, uint32_t *hz)
@@ -534,9 +543,6 @@ static void _sensor_poll_cb(lv_timer_t *t)
             if (s->warmup_remaining_ms <= POLL_PERIOD_MS)
             {
                 s->warmup_remaining_ms = 0;
-                printf("[PortSensor:%s] HW_READY | warm-up complete, starting data at %u Hz\n",
-                       s->type_name,
-                       s->sample_rate_hz);
             }
             else
             {
@@ -566,6 +572,8 @@ static void _sensor_poll_cb(lv_timer_t *t)
         if (s->debug_fixed || s->generate)
         {
             eos_sensor_data_t data = s->debug_fixed ? s->debug_data : s->generate(&s->wave);
+            s->current_data = data;
+            s->has_current_data = true;
             eos_sensor_notify(s->type, &data, now);
         }
     }
@@ -589,6 +597,7 @@ void eos_port_sensor_init(void)
     eos_dev_sensor_register("sim_gyro", EOS_SENSOR_TYPE_GYRO, &_generic_ops);
     eos_dev_sensor_register("sim_mag", EOS_SENSOR_TYPE_MAG, &_generic_ops);
     eos_dev_sensor_register("sim_hr", EOS_SENSOR_TYPE_HR, &_generic_ops);
+    eos_dev_sensor_register("sim_ppg", EOS_SENSOR_TYPE_PPG, &_generic_ops);
     eos_dev_sensor_register("sim_spo2", EOS_SENSOR_TYPE_SPO2, &_generic_ops);
     eos_dev_sensor_register("sim_light", EOS_SENSOR_TYPE_LIGHT, &_generic_ops);
     eos_dev_sensor_register("sim_proximity", EOS_SENSOR_TYPE_PROXIMITY, &_generic_ops);
@@ -642,8 +651,9 @@ bool eos_port_sensor_set_debug_fixed(eos_sensor_type_t type, const eos_sensor_da
 
     memcpy(&s->debug_data, data, sizeof(s->debug_data));
     s->debug_fixed = true;
+    s->current_data = *data;
+    s->has_current_data = true;
     s->last_poll_tick = 0;
-    printf("[PortSensor:%s] DEBUG   | fixed data enabled\n", s->type_name);
     return true;
 }
 
@@ -655,7 +665,6 @@ void eos_port_sensor_set_debug_random(eos_sensor_type_t type)
 
     s->debug_fixed = false;
     s->last_poll_tick = 0;
-    printf("[PortSensor:%s] DEBUG   | random data enabled\n", s->type_name);
 }
 
 bool eos_port_sensor_get_debug_fixed(eos_sensor_type_t type, eos_sensor_data_t *data)
@@ -666,5 +675,15 @@ bool eos_port_sensor_get_debug_fixed(eos_sensor_type_t type, eos_sensor_data_t *
 
     if (data)
         memcpy(data, &s->debug_data, sizeof(*data));
+    return true;
+}
+
+bool eos_port_sensor_read_current(eos_sensor_type_t type, eos_sensor_data_t *data)
+{
+    _sensor_config_t *s = _lookup_type(type);
+    if (!s || !data || !s->has_current_data)
+        return false;
+
+    *data = s->current_data;
     return true;
 }
