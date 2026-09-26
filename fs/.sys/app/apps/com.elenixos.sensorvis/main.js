@@ -520,7 +520,7 @@ function createHeartRateCard(parent) {
     chart.setSize(chartW, chartH);
     chart.setPos(16, 106);
     chart.setType(lv.CHART_TYPE_LINE);
-    chart.setRange(lv.CHART_AXIS_PRIMARY_Y, 0, 100);
+    chart.setAxisRange(lv.CHART_AXIS_PRIMARY_Y, 0, 100);
     chart.setPointCount(50);
     chart.setStyleBgColor(lv.color.hex(C.PANEL_BG), lv.PART_MAIN);
     chart.setStyleBgOpa(60, lv.PART_MAIN);
@@ -671,6 +671,7 @@ eos.sensor.setSamplePeriod(eos.SENSOR_STEP, 1000);
 let roll  = 0.0;
 let pitch = 0.0;
 let yaw   = 0.0;
+let tick  = 0;
 
 function fmt(v, d) {
     const m = Math.pow(10, d);
@@ -684,6 +685,8 @@ function padL(s, w) {
 }
 
 function updateSensors() {
+    tick += 1;
+
     // ── IMU ───────────────────────────────────────────────────
     const acce = eos.sensor.readLatest(eos.SENSOR_ACCE);
     const gyro = eos.sensor.readLatest(eos.SENSOR_GYRO);
