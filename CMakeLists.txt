@@ -184,6 +184,10 @@ add_compile_definitions(EOS_PLATFORM_${EOS_PLATFORM}=1)
 set(LV_CONF_BUILD_DISABLE_EXAMPLES ON CACHE BOOL "Disable LVGL examples" FORCE)
 set(LV_CONF_BUILD_DISABLE_DEMOS ON CACHE BOOL "Disable LVGL demos" FORCE)
 add_subdirectory(lvgl)
+target_include_directories(lvgl PUBLIC
+    ${PROJECT_SOURCE_DIR}/ElenixOS/src
+    ${PROJECT_SOURCE_DIR}/ElenixOS/src/kernel/debug
+)
 
 if(EOS_IS_WASM)
     target_include_directories(lvgl PUBLIC
@@ -211,6 +215,7 @@ endif()
 set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/main.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_port.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_dump_port.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_esh_vscode.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_headless_display.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_headless_ipc.c
