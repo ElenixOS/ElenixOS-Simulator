@@ -417,10 +417,13 @@ static void _handle_text(const uint8_t *payload, size_t payload_size)
     char *x_text;
     char *y_text;
     char *delta_text;
+    char *key_text;
+    char *action_text;
     char *action_end;
     long x;
     long y;
     long delta;
+    long key;
     size_t copy_size = payload_size < sizeof(message) - 1U ? payload_size : sizeof(message) - 1U;
 
     memcpy(message, payload, copy_size);
@@ -466,9 +469,40 @@ static void _handle_text(const uint8_t *payload, size_t payload_size)
             s_input_callback(EOS_HEADLESS_WEBSOCKET_INPUT_WHEEL, (int32_t)delta, 0, s_input_user_data);
         return;
     }
+    if (strstr(message, "\"type\":\"key\"") != NULL)
+    {
+        action_text = strstr(message, "\"action\":\"");
+        key_text = strstr(message, "\"key\":");
+        if (!action_text || !key_text)
+            return;
+        action_text += strlen("\"action\":\"");
+        action_end = strchr(action_text, '\"');
+        if (!action_end || action_end == action_text)
+            return;
+        size_t action_size = (size_t)(action_end - action_text);
+        if (action_size >= sizeof(action))
+            return;
+        memcpy(action, action_text, action_size);
+        action[action_size] = '\0';
+        key = strtol(key_text + strlen("\"key\":"), &number_end, 10);
+        if (number_end == key_text + strlen("\"key\":") || key <= 0L || key > 0x10FFFFL)
+            return;
+        if (s_input_callback)
+        {
+            eos_headless_websocket_input_action_t key_action;
+            if (strcmp(action, "down") == 0)
+                key_action = EOS_HEADLESS_WEBSOCKET_INPUT_KEY_DOWN;
+            else if (strcmp(action, "up") == 0)
+                key_action = EOS_HEADLESS_WEBSOCKET_INPUT_KEY_UP;
+            else
+                return;
+            s_input_callback(key_action, (int32_t)key, 0, s_input_user_data);
+        }
+        return;
+    }
     if (strstr(message, "\"type\":\"input\"") == NULL)
         return;
-    char *action_text = strstr(message, "\"action\":\"");
+    action_text = strstr(message, "\"action\":\"");
     x_text = strstr(message, "\"x\":");
     y_text = strstr(message, "\"y\":");
     if (!action_text || !x_text || !y_text)

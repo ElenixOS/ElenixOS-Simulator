@@ -31,6 +31,12 @@ typedef struct
 
 typedef struct
 {
+    eos_headless_websocket_input_action_t action;
+    uint32_t key;
+} eos_headless_key_event_t;
+
+typedef struct
+{
     /* LVGL owns this buffer while rendering.  Keep it separate from the
      * framebuffer that is published over IPC so a flush cannot overwrite the
      * active draw buffer while LVGL is still using it. */
@@ -45,25 +51,36 @@ typedef struct
 
 static eos_headless_display_data_t *s_display_data;
 static eos_headless_input_event_t s_input_queue[EOS_HEADLESS_INPUT_QUEUE_SIZE];
+static eos_headless_key_event_t s_key_queue[EOS_HEADLESS_INPUT_QUEUE_SIZE];
 static uint8_t s_input_queue_head;
 static uint8_t s_input_queue_tail;
 static uint8_t s_input_queue_count;
+static uint8_t s_key_queue_head;
+static uint8_t s_key_queue_tail;
+static uint8_t s_key_queue_count;
 static uint32_t s_input_width;
 static uint32_t s_input_height;
 static int32_t s_input_x;
 static int32_t s_input_y;
 static lv_indev_state_t s_input_state = LV_INDEV_STATE_RELEASED;
+static uint32_t s_input_key;
+static lv_indev_state_t s_input_key_state = LV_INDEV_STATE_RELEASED;
 
 static void _headless_input_reset(uint32_t width, uint32_t height)
 {
     s_input_queue_head = 0U;
     s_input_queue_tail = 0U;
     s_input_queue_count = 0U;
+    s_key_queue_head = 0U;
+    s_key_queue_tail = 0U;
+    s_key_queue_count = 0U;
     s_input_width = width;
     s_input_height = height;
     s_input_x = 0;
     s_input_y = 0;
     s_input_state = LV_INDEV_STATE_RELEASED;
+    s_input_key = 0U;
+    s_input_key_state = LV_INDEV_STATE_RELEASED;
 }
 
 static void _headless_input_submit(eos_headless_websocket_input_action_t action, int32_t x, int32_t y)
@@ -109,6 +126,33 @@ static void _headless_input_submit(eos_headless_websocket_input_action_t action,
     s_input_queue_count++;
 }
 
+static void _headless_key_submit(eos_headless_websocket_input_action_t action, int32_t key)
+{
+    if (!s_display_data || (action != EOS_HEADLESS_WEBSOCKET_INPUT_KEY_DOWN
+                            && action != EOS_HEADLESS_WEBSOCKET_INPUT_KEY_UP)
+        || key <= 0 || (uint32_t)key > 0x10FFFFU)
+    {
+        return;
+    }
+
+    if (s_key_queue_count >= EOS_HEADLESS_INPUT_QUEUE_SIZE)
+    {
+        /* Preserve a release edge so a full queue cannot leave LVGL with a
+         * permanently pressed key. */
+        if (action == EOS_HEADLESS_WEBSOCKET_INPUT_KEY_DOWN)
+        {
+            return;
+        }
+        s_key_queue_head = (uint8_t)((s_key_queue_head + 1U) % EOS_HEADLESS_INPUT_QUEUE_SIZE);
+        s_key_queue_count--;
+    }
+
+    s_key_queue[s_key_queue_tail].action = action;
+    s_key_queue[s_key_queue_tail].key = (uint32_t)key;
+    s_key_queue_tail = (uint8_t)((s_key_queue_tail + 1U) % EOS_HEADLESS_INPUT_QUEUE_SIZE);
+    s_key_queue_count++;
+}
+
 static void _headless_button_submit(eos_headless_websocket_input_action_t action)
 {
     switch (action)
@@ -136,6 +180,11 @@ static void _headless_websocket_input_callback(eos_headless_websocket_input_acti
     if (action == EOS_HEADLESS_WEBSOCKET_INPUT_WHEEL)
     {
         eos_crown_encoder_scroll_report(x);
+        return;
+    }
+    if (action == EOS_HEADLESS_WEBSOCKET_INPUT_KEY_DOWN || action == EOS_HEADLESS_WEBSOCKET_INPUT_KEY_UP)
+    {
+        _headless_key_submit(action, x);
         return;
     }
     if (action >= EOS_HEADLESS_WEBSOCKET_BUTTON_CROWN_CLICK)
@@ -277,6 +326,22 @@ static void _headless_input_read(lv_indev_t *indev, lv_indev_data_t *data)
     data->state = s_input_state;
 }
 
+static void _headless_key_read(lv_indev_t *indev, lv_indev_data_t *data)
+{
+    (void)indev;
+    if (s_key_queue_count > 0U)
+    {
+        eos_headless_key_event_t *event = &s_key_queue[s_key_queue_head];
+        s_input_key = event->key;
+        s_input_key_state =
+            event->action == EOS_HEADLESS_WEBSOCKET_INPUT_KEY_UP ? LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
+        s_key_queue_head = (uint8_t)((s_key_queue_head + 1U) % EOS_HEADLESS_INPUT_QUEUE_SIZE);
+        s_key_queue_count--;
+    }
+    data->key = s_input_key;
+    data->state = s_input_key_state;
+}
+
 lv_display_t *eos_headless_display_create(int32_t width,
                                           int32_t height,
                                           const char *socket_path,
@@ -284,6 +349,7 @@ lv_display_t *eos_headless_display_create(int32_t width,
 {
     lv_display_t *display;
     lv_indev_t *indev;
+    lv_indev_t *keypad;
     eos_headless_display_data_t *data;
 
     lv_tick_set_cb(_headless_tick_get);
@@ -373,6 +439,25 @@ lv_display_t *eos_headless_display_create(int32_t width,
         eos_headless_websocket_shutdown();
         return NULL;
     }
+
+    keypad = lv_indev_create();
+    if (!keypad)
+    {
+        lv_indev_delete(indev);
+        lv_display_delete(display);
+        free(data->lvgl_frame);
+        free(data->render_frame);
+        free(data->output_frame);
+        free(data);
+        eos_headless_ipc_shutdown();
+        eos_headless_websocket_shutdown();
+        return NULL;
+    }
+
+    lv_indev_set_type(keypad, LV_INDEV_TYPE_KEYPAD);
+    lv_indev_set_read_cb(keypad, _headless_key_read);
+    lv_indev_set_display(keypad, display);
+    lv_indev_set_group(keypad, lv_group_get_default());
 
     s_display_data = data;
     return display;
