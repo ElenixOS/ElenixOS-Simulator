@@ -31,6 +31,7 @@
 #include "eos_log.h"
 #include "eos_app.h"
 #include "eos_app_list.h"
+#include "spm.h"
 #include "eos_activity.h"
 #include "eos_service_storage.h"
 #include "eos_debug_anim.h"
@@ -470,6 +471,17 @@ EMSCRIPTEN_KEEPALIVE int eos_wasm_launch_app_by_id(const char *app_id)
 
 EMSCRIPTEN_KEEPALIVE int eos_wasm_reload_current_script(void)
 {
+    eos_activity_t *current = eos_activity_get_current();
+    const char *app_id = current ? eos_activity_get_app_id(current) : NULL;
+    if (current && app_id && eos_activity_get_type(current) == EOS_ACTIVITY_TYPE_APP)
+    {
+        /* Script Apps must go through SPM so the program identity, Activity
+         * and Recent Apps state are restarted as one transaction.  A native
+         * Activity is not a script reload target. */
+        if (spm_get_program_by_id_any_state(app_id))
+            return eos_app_restart_by_id(app_id) == EOS_OK ? 1 : 0;
+        return 0;
+    }
     return script_engine_reload_current_script() == EOS_OK ? 1 : 0;
 }
 
