@@ -434,7 +434,7 @@ static eos_result_t _at_read(eos_audio_decoder_dsc_t *dsc, void *buf, uint32_t b
         r = _at_read_lpcm(dsc, buf, buf_size, bytes_read);
 
     if (_at_read_call < 5 || (_at_read_call < 10 && *bytes_read == 0))
-        EOS_LOG_I("read#%d: pkt=%u/%lld conv=%d buf=%u rd=%u",
+        EOS_LOG_D("read#%d: pkt=%u/%lld conv=%d buf=%u rd=%u",
                   _at_read_call,
                   ad->packetIndex,
                   ad->totalPackets,

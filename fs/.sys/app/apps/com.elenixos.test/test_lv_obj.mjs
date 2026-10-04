@@ -121,10 +121,6 @@ export function suite() {
         let p = obj.getParent();
         if (!p) throw new Error("null");
     });
-    test("getScreen -> handle", () => {
-        let s = obj.getScreen();
-        if (!s) throw new Error("null");
-    });
     test("getChildCount -> number", () => {
         let n = parent.getChildCount();
         if (typeof n !== "number") throw new Error("type");
@@ -835,9 +831,8 @@ export function suite() {
     test("prop parent set (reparent)", () => {
         obj.parent = parent;
     });
-    test("prop screen get", () => {
-        let s = obj.screen;
-        if (!s) throw new Error("null");
+    test("prop screen is not exported", () => {
+        if (typeof obj.screen !== "undefined") throw new Error("screen property is exposed");
     });
     test("prop childCount get", () => {
         if (typeof obj.childCount !== "number") throw new Error("type");
