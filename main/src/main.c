@@ -627,7 +627,6 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_indev_t *mouse = lv_sdl_mouse_create();
     lv_indev_set_group(mouse, lv_group_get_default());
     lv_indev_set_display(mouse, disp);
-    (void)eos_touch_bind_indev(mouse);
     lv_display_set_default(disp);
 
 #if LV_USE_MOUSE_CURSOR_IMAGE
