@@ -42,24 +42,21 @@ The current Watchface Metric and complex-widget API is documented in [`docs/watc
 
 ## LVGL version policy
 
-ElenixOS currently uses the LVGL 9.6.0 release as its integration baseline.
-Updating the LVGL submodule requires regenerating `lvgl/scripts/gen_json/output/lvgl.json` and `ElenixOS/src/script_engine/sni/sni_api/lv/sni_api_lv.c` from the selected LVGL 9.6 release.
+Before the first official ElenixOS release, this repository periodically updates its LVGL submodule from the LVGL upstream `master` branch.
+After the official release, the project will follow a stable LVGL release as its integration baseline.
+Updating LVGL requires regenerating its API metadata with the Simulator's `lv_conf.h`, then running the unified SNI generator. The metadata is written under `build/` and is not a hand-maintained type inventory.
 
-To update the integration, check out the selected LVGL 9.6 release tag, then regenerate the API description and SNI bindings:
+To refresh the pre-release integration, update the `lvgl` submodule to the intended `master` revision, then regenerate the API description and SNI bindings:
 
 ```bash
 python3 lvgl/scripts/gen_json/gen_json.py \
-    --output-path lvgl/scripts/gen_json/output
-python3 ElenixOS/scripts/sni/gen_lvgl_desc.py \
-    --api-table ElenixOS/scripts/sni/config/api_table.json \
-    --output ElenixOS/src/script_engine/sni/sni_api/lv/sni_api_lv.c \
-    --lvgl-json lvgl/scripts/gen_json/output/lvgl.json \
-    --lv-types ElenixOS/scripts/sni/config/lv_types.json \
-    --lvgl-version-header lvgl/include/lvgl/lv_version.h
+    --lvgl-config lv_conf.h \
+    --output-path build/lvgl-api
+python3 ElenixOS/scripts/sni/generate_sni.py generate \
+    --lvgl-json build/lvgl-api/lvgl.json
 ```
 
-The default generation keeps LVGL Doxygen descriptions so the generated SNI wrappers retain API comments.
-`--no-docstrings` remains available only as an explicit metadata-only fast path; it is not used by the checked-in regeneration command.
+The SNI generator reads `lvgl.json` and `ElenixOS/scripts/sni/config/sni_lvgl_bindings.json`, validates the complete binding model, then writes `sni_type_ids.h`, `sni_lv_types.c`, and `sni_api_lv.c`. Its `analyze`, `validate`, `generate`, `update-config`, and `dump-ir` commands use the same resolver and reporter.
 
 ## WASM publish to GitHub Pages
 
