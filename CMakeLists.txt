@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 project(lvgl C CXX)
 
+# Deploy the independent RemixIcon TinyTTF beside the regular system font.
+set(EOS_ICON_TTF_SOURCE "${CMAKE_SOURCE_DIR}/ElenixOS/third_party/RemixIcon/fonts/remixicon.ttf")
+set(EOS_FONT_RESOURCE_DIR "${CMAKE_SOURCE_DIR}/fs/.sys/res/font")
+if(NOT EXISTS "${EOS_ICON_TTF_SOURCE}")
+    message(FATAL_ERROR "RemixIcon TinyTTF source is missing: ${EOS_ICON_TTF_SOURCE}")
+endif()
+file(MAKE_DIRECTORY "${EOS_FONT_RESOURCE_DIR}")
+configure_file("${EOS_ICON_TTF_SOURCE}" "${EOS_FONT_RESOURCE_DIR}/remixicon.ttf" COPYONLY)
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Default build type" FORCE)
 endif()
