@@ -648,6 +648,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_obj_t *simulator_container = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(simulator_container);
     lv_obj_set_size(simulator_container, EOS_DISPLAY_WIDTH, EOS_DISPLAY_HEIGHT);
+    lv_obj_set_style_bg_color(simulator_container, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(simulator_container, LV_OPA_COVER, 0);
     lv_obj_remove_flag(simulator_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_center(simulator_container);
 
