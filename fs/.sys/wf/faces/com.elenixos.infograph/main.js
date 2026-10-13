@@ -15,7 +15,6 @@ const FACE_Y = Math.round((DISPLAY_HEIGHT - FACE_HEIGHT) / 2);
 const USE_MOCK_DATA = true;
 
 const MOCK = {
-    time: { year: 2026, month: 10, day: 8, day_of_week: 4, hour: 10, min: 8, sec: 30, ms: 0 },
     temperature: { min: 20, value: 26, max: 29 },
     uvi: { min: 0, value: 3.6, max: 11 },
     batteryPercent: 97,
@@ -160,7 +159,6 @@ eos.ww.analogDial(root, {
     height: px(340),
     x: faceX(25),
     y: faceY(60),
-    time: MOCK.time,
     smoothSecond: false,
     ticks: {
         major: { count: 12, length: px(13), width: px(2), color: C.white, opacity: 245 },
@@ -386,8 +384,7 @@ eos.ww.analogDial(root, {
     height: px(360),
     x: faceX(15),
     y: faceY(50),
-    smoothSecond: !USE_MOCK_DATA,
-    time: USE_MOCK_DATA ? MOCK.time : undefined,
+    smoothSecond: true,
     ticks: {
         major: { count: 0, length: 0, width: 0, color: C.white, opacity: 0 },
         minor: { count: 1, length: 0, width: 0, color: C.white, opacity: 0 },
@@ -474,8 +471,16 @@ function updateDateTime(now) {
     dateValue.setText(String(now.day));
 }
 
+function subscribeToLiveTime() {
+    updateDateTime(eos.time.getNow());
+    eos.metric.subscribe("time.now", data => {
+        if (sampleIsCurrent(data)) updateDateTime(eos.time.getNow());
+        else updateDateTime(null);
+    }, 1000);
+}
+
 function displayMockData() {
-    updateDateTime(MOCK.time);
+    subscribeToLiveTime();
     updateTemperatureRange({ ...MOCK.temperature, valid: true, stale: false });
     updateUviRange({ ...MOCK.uvi, valid: true, stale: false });
     batteryText.setText(`BAT ${MOCK.batteryPercent}%`);
@@ -484,10 +489,7 @@ function displayMockData() {
 }
 
 function subscribeToLiveData() {
-    eos.metric.subscribe("time.now", data => {
-        if (sampleIsCurrent(data)) updateDateTime(eos.time.getNow());
-        else updateDateTime(null);
-    }, 1000);
+    subscribeToLiveTime();
 
     eos.metric.subscribe("health.heart_rate", data => {
         const valid = sampleIsCurrent(data);
