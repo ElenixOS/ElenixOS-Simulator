@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 project(lvgl C CXX)
 
+# Deploy the independent RemixIcon TinyTTF beside the regular system font.
+set(EOS_ICON_TTF_SOURCE "${CMAKE_SOURCE_DIR}/ElenixOS/third_party/RemixIcon/fonts/remixicon.ttf")
+set(EOS_FONT_RESOURCE_DIR "${CMAKE_SOURCE_DIR}/fs/.sys/res/font")
+if(NOT EXISTS "${EOS_ICON_TTF_SOURCE}")
+    message(FATAL_ERROR "RemixIcon TinyTTF source is missing: ${EOS_ICON_TTF_SOURCE}")
+endif()
+file(MAKE_DIRECTORY "${EOS_FONT_RESOURCE_DIR}")
+configure_file("${EOS_ICON_TTF_SOURCE}" "${EOS_FONT_RESOURCE_DIR}/remixicon.ttf" COPYONLY)
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Default build type" FORCE)
 endif()
@@ -101,12 +110,28 @@ include_directories(${PROJECT_SOURCE_DIR}/main/inc)
 include_directories(${PROJECT_SOURCE_DIR}/debugger_box)
 
 # Kconfig: merge project defaults → build-dir .config → generated header
+if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+    # Prefer the project virtual environment so kconfiglib installed there is
+    # available even when CMake was launched from a shell without activation.
+    set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python" CACHE FILEPATH
+        "Python interpreter used by the simulator" FORCE)
+elseif(EXISTS "${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe")
+    set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe" CACHE FILEPATH
+        "Python interpreter used by the simulator" FORCE)
+endif()
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     set(KCONFIG_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/kconfig.py")
+    set(KCONFIG_FILE "${CMAKE_SOURCE_DIR}/Kconfig")
     set(KCONFIG_DEFAULTS "${CMAKE_SOURCE_DIR}/main/src/config/defaults.conf")
     set(KCONFIG_DIR  "${CMAKE_BINARY_DIR}")
     set(KCONFIG_OUT  "${CMAKE_BINARY_DIR}/generated/eos_config_gen.h")
+
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${KCONFIG_FILE}"
+        "${CMAKE_SOURCE_DIR}/main/src/config/Kconfig"
+        "${CMAKE_SOURCE_DIR}/ElenixOS/src/config/Kconfig"
+    )
 
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
     include_directories("${CMAKE_BINARY_DIR}/generated")
@@ -168,6 +193,10 @@ add_compile_definitions(EOS_PLATFORM_${EOS_PLATFORM}=1)
 set(LV_CONF_BUILD_DISABLE_EXAMPLES ON CACHE BOOL "Disable LVGL examples" FORCE)
 set(LV_CONF_BUILD_DISABLE_DEMOS ON CACHE BOOL "Disable LVGL demos" FORCE)
 add_subdirectory(lvgl)
+target_include_directories(lvgl PUBLIC
+    ${PROJECT_SOURCE_DIR}/ElenixOS/src
+    ${PROJECT_SOURCE_DIR}/ElenixOS/src/kernel/debug
+)
 
 if(EOS_IS_WASM)
     target_include_directories(lvgl PUBLIC
@@ -195,6 +224,11 @@ endif()
 set(EOS_MAIN_SOURCES
     ${PROJECT_SOURCE_DIR}/main/src/main.c
     ${PROJECT_SOURCE_DIR}/main/src/eos_port.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_dump_port.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_esh_vscode.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_display.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_ipc.c
+    ${PROJECT_SOURCE_DIR}/main/src/eos_headless_websocket.c
 
     ${PROJECT_SOURCE_DIR}/main/src/mac_api.c
     ${PROJECT_SOURCE_DIR}/main/src/mouse_cursor_icon.c
@@ -222,6 +256,10 @@ endif()
 
 add_executable(main ${EOS_MAIN_SOURCES})
 set_target_properties(main PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${EOS_RUNTIME_OUTPUT_DIR}")
+
+if(WIN32)
+    target_link_libraries(main PRIVATE ws2_32)
+endif()
 
 if(USE_FREERTOS)
     target_link_libraries(main PRIVATE freertos_config FreeRTOS)

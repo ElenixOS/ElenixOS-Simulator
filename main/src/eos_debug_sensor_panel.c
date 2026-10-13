@@ -8,6 +8,7 @@
  *  - Gyroscope (GYRO)       — X / Y / Z
  *  - Magnetometer (MAG)     — X / Y / Z
  *  - Heart Rate (HR)        — bpm
+ *  - Raw PPG (PPG)          — red / infrared ADC counts
  *  - SpO2 (SPO2)            — %
  *  - Light (LIGHT)          — lux
  *  - Temperature (TEMP)     — °C
@@ -22,7 +23,6 @@
  */
 
 #include "eos_debug_sensor_panel.h"
-#include "eos_service_sensor.h"
 #include "eos_dev_sensor.h"
 #include "eos_port_sensor.h"
 #include "eos_error.h"
@@ -39,10 +39,10 @@
 #define PAD 10
 #define CARD_PAD 8
 #define CARD_RADIUS 8
-#define DEBUG_SAMPLE_INTERVAL_MS 100
+#define DEBUG_REFRESH_INTERVAL_MS 100
 
 /* Number of registered sensors in the simulator */
-#define SENSOR_COUNT 12
+#define SENSOR_COUNT 13
 
 /* ===================================================================
  * Constants — colour palette (modern dark theme, same as anim panel)
@@ -82,6 +82,7 @@ static const _sensor_info_t _sensor_table[SENSOR_COUNT] = {
     {"Gyroscope", "GYRO", EOS_SENSOR_TYPE_GYRO, COL_IMU, true},
     {"Magnetometer", "MAG", EOS_SENSOR_TYPE_MAG, COL_IMU, true},
     {"Heart Rate", "HR", EOS_SENSOR_TYPE_HR, COL_HEALTH, false},
+    {"Raw Optical", "PPG", EOS_SENSOR_TYPE_PPG, COL_HEALTH, false},
     {"SpO2", "SPO2", EOS_SENSOR_TYPE_SPO2, COL_HEALTH, false},
     {"Light", "LIGHT", EOS_SENSOR_TYPE_LIGHT, COL_ENV, false},
     {"Proximity", "PROX", EOS_SENSOR_TYPE_PROXIMITY, COL_ENV, false},
@@ -159,7 +160,7 @@ static lv_obj_t *_make_header(lv_obj_t *parent, const _sensor_info_t *info)
  * Value formatting
  * =================================================================== */
 
-static void _format_triple(int16_t x, int16_t y, int16_t z, char *xb, char *yb, char *zb, size_t cap)
+static void _format_triple(int32_t x, int32_t y, int32_t z, char *xb, char *yb, char *zb, size_t cap)
 {
     snprintf(xb, cap, "X: %d", x);
     snprintf(yb, cap, "Y: %d", y);
@@ -188,11 +189,11 @@ static void _format_single(const _sensor_info_t *info, const eos_sensor_data_t *
         case EOS_SENSOR_TYPE_TEMP:
         {
             int32_t t = data->temp.temp;
-            int32_t whole = t / 100;
-            int32_t frac = t % 100;
+            int32_t whole = t / 1000;
+            int32_t frac = t % 1000;
             if (frac < 0)
                 frac = -frac;
-            snprintf(buf, cap, "%d.%02d C", (int)whole, (int)frac);
+            snprintf(buf, cap, "%d.%02d C", (int)whole, (int)(frac / 10));
             break;
         }
         case EOS_SENSOR_TYPE_BARO:
@@ -204,19 +205,13 @@ static void _format_single(const _sensor_info_t *info, const eos_sensor_data_t *
         case EOS_SENSOR_TYPE_STEP:
             snprintf(buf, cap, "%u steps", (unsigned)data->step.steps);
             break;
+        case EOS_SENSOR_TYPE_PPG:
+            snprintf(buf, cap, "R:%lu IR:%lu adc", (unsigned long)data->ppg.red, (unsigned long)data->ppg.ir);
+            break;
         default:
             snprintf(buf, cap, "---");
             break;
     }
-}
-
-static int16_t _clamp_i16(int value)
-{
-    if (value < INT16_MIN)
-        return INT16_MIN;
-    if (value > INT16_MAX)
-        return INT16_MAX;
-    return (int16_t)value;
 }
 
 static uint16_t _clamp_u16(int value)
@@ -241,27 +236,27 @@ static void _set_fixed_data_value(eos_sensor_data_t *data, eos_sensor_type_t typ
     {
         case EOS_SENSOR_TYPE_ACCE:
             if (axis == 0)
-                data->acce.x = _clamp_i16(value);
+                data->acce.x = value;
             else if (axis == 1)
-                data->acce.y = _clamp_i16(value);
+                data->acce.y = value;
             else
-                data->acce.z = _clamp_i16(value);
+                data->acce.z = value;
             break;
         case EOS_SENSOR_TYPE_GYRO:
             if (axis == 0)
-                data->gyro.x = _clamp_i16(value);
+                data->gyro.x = value;
             else if (axis == 1)
-                data->gyro.y = _clamp_i16(value);
+                data->gyro.y = value;
             else
-                data->gyro.z = _clamp_i16(value);
+                data->gyro.z = value;
             break;
         case EOS_SENSOR_TYPE_MAG:
             if (axis == 0)
-                data->mag.x = _clamp_i16(value);
+                data->mag.x = value;
             else if (axis == 1)
-                data->mag.y = _clamp_i16(value);
+                data->mag.y = value;
             else
-                data->mag.z = _clamp_i16(value);
+                data->mag.z = value;
             break;
         case EOS_SENSOR_TYPE_HR:
             data->hr.heart_rate = _clamp_u16(value);
@@ -290,6 +285,12 @@ static void _set_fixed_data_value(eos_sensor_data_t *data, eos_sensor_type_t typ
         case EOS_SENSOR_TYPE_STEP:
             data->step.steps = _clamp_u32(value);
             break;
+        case EOS_SENSOR_TYPE_PPG:
+            if (axis == 0)
+                data->ppg.red = _clamp_u32(value);
+            else
+                data->ppg.ir = _clamp_u32(value);
+            break;
         default:
             break;
     }
@@ -315,31 +316,31 @@ static void _refresh_timer_cb(lv_timer_t *t)
     {
         const _sensor_info_t *info = &_sensor_table[i];
         _card_t *card = &_cards[i];
-        eos_sensor_raw_data_t raw;
-        eos_result_t res = eos_sensor_read_latest(info->type, &raw);
+        eos_sensor_data_t raw;
+        bool has_data = eos_port_sensor_read_current(info->type, &raw);
 
         if (info->is_triple_axis)
         {
             char xb[16], yb[16], zb[16];
-            if (res == EOS_OK)
+            if (has_data)
             {
-                int16_t x = 0, y = 0, z = 0;
+                int32_t x = 0, y = 0, z = 0;
                 switch (info->type)
                 {
                     case EOS_SENSOR_TYPE_ACCE:
-                        x = raw.data.acce.x;
-                        y = raw.data.acce.y;
-                        z = raw.data.acce.z;
+                        x = raw.acce.x;
+                        y = raw.acce.y;
+                        z = raw.acce.z;
                         break;
                     case EOS_SENSOR_TYPE_GYRO:
-                        x = raw.data.gyro.x;
-                        y = raw.data.gyro.y;
-                        z = raw.data.gyro.z;
+                        x = raw.gyro.x;
+                        y = raw.gyro.y;
+                        z = raw.gyro.z;
                         break;
                     case EOS_SENSOR_TYPE_MAG:
-                        x = raw.data.mag.x;
-                        y = raw.data.mag.y;
-                        z = raw.data.mag.z;
+                        x = raw.mag.x;
+                        y = raw.mag.y;
+                        z = raw.mag.z;
                         break;
                     default:
                         break;
@@ -362,9 +363,9 @@ static void _refresh_timer_cb(lv_timer_t *t)
         else
         {
             char buf[32];
-            if (res == EOS_OK)
+            if (has_data)
             {
-                _format_single(info, &raw.data, buf, sizeof(buf));
+                _format_single(info, &raw, buf, sizeof(buf));
             }
             else
             {
@@ -445,13 +446,6 @@ static void _apply_btn_cb(lv_event_t *e)
     }
 
     _apply_fixed_value(idx);
-}
-
-static void _sensor_debug_sub_cb(eos_sensor_type_t type, const eos_sensor_raw_data_t *data, void *user_data)
-{
-    (void)type;
-    (void)data;
-    (void)user_data;
 }
 
 /* ===================================================================
@@ -612,14 +606,14 @@ lv_obj_t *eos_debug_sensor_panel_create(lv_obj_t *parent)
     for (int i = 0; i < SENSOR_COUNT; i++)
     {
         _build_sensor_card(_panel, i);
-        eos_sensor_subscribe(_sensor_table[i].type,
-                             _sensor_debug_sub_cb,
-                             (void *)(intptr_t)i,
-                             DEBUG_SAMPLE_INTERVAL_MS);
     }
 
-    /* ---- Periodic refresh (10 Hz) ---- */
-    _refresh_timer = lv_timer_create(_refresh_timer_cb, 100, NULL);
+    /* ---- Periodic read-only refresh (10 Hz) ----
+     * The debug panel must not become a Sensor Service sampling owner.  It
+     * reads the latest samples published by the service; effective sampling
+     * periods remain exclusively under Sensor Service arbitration.
+     */
+    _refresh_timer = lv_timer_create(_refresh_timer_cb, DEBUG_REFRESH_INTERVAL_MS, NULL);
 
     /* Initial read */
     _refresh_timer_cb(NULL);

@@ -1,0 +1,10 @@
+{
+    "id": "com.elenixos.infograph",
+    "name": "Infograph",
+    "version": "1.0.0",
+    "author": "ElenixOS",
+    "description": "Native LVGL Infograph face with live system data",
+    "minApiLevel": 0,
+    "targetApiLevel": 0,
+    "permissions": []
+}

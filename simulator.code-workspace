@@ -13,7 +13,9 @@
 			"ms-vscode.cpptools", // common C/C++ support
 			"ms-vscode.cpptools-themes", // general C/C++ theme
 			"ms-vscode.cmake-tools", // cmake support
-			"ritwickdey.liveserver" // static hosting for WASM output
+			"vadimcn.vscode-lldb", // interactive native debugging in the integrated terminal
+			"ritwickdey.liveserver", // static hosting for WASM output
+			"elenixos.elenixos-toolkit" // Native headless Simulator Webview integration
 		],
 		"unwantedRecommendations": []
 	},
@@ -25,6 +27,9 @@
 		"cmake.configureOnOpen": true,
 		"cmake.automaticReconfigure": true,
 		"cmake.buildBeforeRun": true,
+		// Do not inject `source .venv/bin/activate` into CodeLLDB's
+		// interactive debug terminal. It can race with codelldb-launch.
+		"python.terminal.activateEnvironment": false,
 		"liveServer.settings.port": 5500,
 		"liveServer.settings.root": "/",
 		"liveServer.settings.ignoreFiles": [
@@ -278,10 +283,41 @@
 		"version": "0.2.0",
 		"debug.openDebug": "openOnSessionStart",
 		"debug.focusConsoleOnStart": false,
-		"console": "integratedTerminal",
 		"configurations": [
 			{
-				"name": "Debug ElenixOS with gdb",
+				"name": "Debug ElenixOS with CodeLLDB (SDL window)",
+				"type": "lldb",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/main",
+				"args": [],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build",
+				"terminal": "integrated",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe"
+				}
+			},
+			{
+				"name": "Debug ElenixOS with CodeLLDB (headless Webview)",
+				"type": "lldb",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/main",
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build",
+				"terminal": "integrated",
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe"
+				}
+			},
+			{
+				"name": "Debug ElenixOS with gdb (SDL window)",
 				"type": "cppdbg",
 				"request": "launch",
 				"program": "${workspaceFolder}/bin/main",
@@ -289,13 +325,13 @@
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
+				"externalConsole": false,
 				"linux": {
 					"MIMode": "gdb",
 					"miDebuggerPath": "/usr/bin/gdb"
 				},
 				"osx": {
-					"MIMode": "lldb",
-					// "externalConsole": true
+					"MIMode": "lldb"
 				},
 				"windows": {
 					"MIMode": "gdb",
@@ -304,7 +340,36 @@
 				}
 			},
 			{
-				"name": "Debug ElenixOS with LLVM",
+				"name": "Debug ElenixOS with gdb (headless Webview)",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/main",
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build",
+				"stopAtEntry": false,
+				"externalConsole": false,
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
+				"linux": {
+					"MIMode": "gdb",
+					"miDebuggerPath": "/usr/bin/gdb"
+				},
+				"osx": {
+					"MIMode": "lldb"
+				},
+				"windows": {
+					"MIMode": "gdb",
+					"program": "${workspaceFolder}\\bin\\main.exe",
+					"miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe"
+				}
+			},
+			{
+				"name": "Debug ElenixOS with LLVM (SDL window)",
 				"type": "cppdbg",
 				"request": "launch",
 				"program": "${workspaceFolder}/bin/main",
@@ -312,7 +377,36 @@
 				"cwd": "${workspaceFolder}",
 				"preLaunchTask": "Build",
 				"stopAtEntry": false,
-				"MIMode": "lldb"
+				"externalConsole": false,
+				"MIMode": "lldb",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe",
+					"MIMode": "gdb",
+					"miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe"
+				}
+			},
+			{
+				"name": "Debug ElenixOS with LLVM (headless Webview)",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/main",
+				"args": [
+					"--headless",
+					"--ipc-socket",
+					"${workspaceFolder}/build/elenixos-simulator.sock"
+				],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build",
+				"stopAtEntry": false,
+				"externalConsole": false,
+				"MIMode": "lldb",
+				"elenixosSimulator": true,
+				"elenixosIpcSocket": "build/elenixos-simulator.sock",
+				"windows": {
+					"program": "${workspaceFolder}\\bin\\main.exe",
+					"MIMode": "gdb",
+					"miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe"
+				}
 			},
 			{
 				"name": "Debug ElenixOS WASM (Chrome)",

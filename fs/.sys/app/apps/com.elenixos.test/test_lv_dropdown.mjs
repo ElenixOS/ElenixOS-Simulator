@@ -47,6 +47,14 @@ export function suite() {
         if (opts.indexOf("Banana") < 0) throw new Error("missing option");
     });
 
+    test("setOptionsStatic copies temporary JS strings", () => {
+        dd.setOptionsStatic("Static One\nStatic Two");
+        dd.setSelected(1);
+        let selected = dd.getSelectedStr("", 32);
+        if (selected !== "Static Two") throw new Error("selected=" + selected);
+        if (dd.getSelectedStr("", 0) !== "") throw new Error("zero-size output was not empty");
+    });
+
     test("getOptionCount", () => {
         let n = dd.getOptionCount();
         if (typeof n !== "number") throw new Error("type=" + typeof n);

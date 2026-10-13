@@ -19,7 +19,9 @@
 #include <emscripten/html5.h>
 #include <emscripten/emscripten.h>
 #endif
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+#include <SDL.h>
+#else
 #include <SDL2/SDL.h>
 #endif
 #include "lvgl/lvgl.h"
@@ -29,6 +31,7 @@
 #include "eos_log.h"
 #include "eos_app.h"
 #include "eos_app_list.h"
+#include "spm.h"
 #include "eos_activity.h"
 #include "eos_service_storage.h"
 #include "eos_debug_anim.h"
@@ -39,6 +42,9 @@
 #include "script_engine_core.h"
 #include "eos_port_vibrator.h"
 #include "eos_port_display.h"
+#include "eos_headless_display.h"
+#include "eos_headless_ipc.h"
+#include "eos_headless_websocket.h"
 #include "eos_port_power.h"
 #include "eos_port_time.h"
 #include "eos_port_battery.h"
@@ -47,7 +53,9 @@
 #include "eos_port_sensor.h"
 #include "eos_service_sensor.h"
 #include "eos_dev_battery.h"
+#include "eos_touch.h"
 #include "eos_diag.h"
+#include "eos_esh_vscode.h"
 
 // Macros and Definitions
 
@@ -85,6 +93,13 @@
 
 // Variables
 lv_obj_t *brightness_mask = NULL;
+
+#ifndef __EMSCRIPTEN__
+static bool s_headless_mode;
+static const char *s_headless_socket_path;
+static uint16_t s_headless_websocket_port;
+#endif
+static bool s_sdl_mousewheel_event_watch_registered;
 
 #ifndef __EMSCRIPTEN__
 #define EOS_LOG_LATEST_FILE "tmp/latest.log"
@@ -235,6 +250,35 @@ static void _init_log_file(void)
 // Function Implementations
 static lv_display_t *hal_init(int32_t w, int32_t h);
 
+#ifndef __EMSCRIPTEN__
+static void _parse_native_arguments(int argc, char **argv)
+{
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--headless") == 0)
+        {
+            s_headless_mode = true;
+        }
+        else if (strcmp(argv[i], "--ipc-socket") == 0 && i + 1 < argc)
+        {
+            s_headless_socket_path = argv[++i];
+        }
+        else if (strncmp(argv[i], "--ipc-socket=", 14) == 0)
+        {
+            s_headless_socket_path = argv[i] + 14;
+        }
+        else if (strcmp(argv[i], "--ws-port") == 0 && i + 1 < argc)
+        {
+            s_headless_websocket_port = (uint16_t)strtoul(argv[++i], NULL, 10);
+        }
+        else if (strncmp(argv[i], "--ws-port=", 10) == 0)
+        {
+            s_headless_websocket_port = (uint16_t)strtoul(argv[i] + 10, NULL, 10);
+        }
+    }
+}
+#endif
+
 extern void freertos_main(void);
 
 #ifdef __EMSCRIPTEN__
@@ -265,8 +309,12 @@ static EM_BOOL eos_main_loop_frame(double time, void *user_data)
 
 int main(int argc, char **argv)
 {
-    (void)argc; /*Unused*/
-    (void)argv; /*Unused*/
+#ifndef __EMSCRIPTEN__
+    _parse_native_arguments(argc, argv);
+#else
+    (void)argc;
+    (void)argv;
+#endif
 
     /*Initialize LVGL*/
     lv_init();
@@ -281,7 +329,17 @@ int main(int argc, char **argv)
 #endif
 
     /*Initialize the HAL (display, input devices, tick) for LVGL*/
-    hal_init(WINDOW_WIDTH, WINDOW_HEIGHT);
+#ifndef __EMSCRIPTEN__
+    const int32_t hal_width = s_headless_mode ? EOS_DISPLAY_WIDTH : WINDOW_WIDTH;
+    const int32_t hal_height = s_headless_mode ? EOS_DISPLAY_HEIGHT : WINDOW_HEIGHT;
+#else
+    const int32_t hal_width = WINDOW_WIDTH;
+    const int32_t hal_height = WINDOW_HEIGHT;
+#endif
+    if (!hal_init(hal_width, hal_height))
+    {
+        return EXIT_FAILURE;
+    }
 
     eos_fs_set_root(EOS_SYS_ROOT_DIR);
 
@@ -296,6 +354,16 @@ int main(int argc, char **argv)
     eos_port_audio_init();
 
     eos_init();
+
+#ifndef __EMSCRIPTEN__
+    /* ESH uses the debugger's non-blocking terminal stdin/stdout.  It is
+     * independent of the headless framebuffer WebSocket, so keep it active
+     * for both SDL and headless Native runs. */
+    if (eos_esh_vscode_init() != EOS_OK)
+    {
+        EOS_LOG_W("VSCode terminal frontend initialization failed");
+    }
+#endif
 
     /* Debug animation tuner (simulator only, no-op in production) */
     eos_debug_anim_init();
@@ -320,22 +388,51 @@ int main(int argc, char **argv)
 #ifdef __EMSCRIPTEN__
     emscripten_request_animation_frame_loop(eos_main_loop_frame, NULL);
 #else
-    while (1)
+    while (!s_headless_mode || !eos_headless_ipc_should_exit())
     {
+        if (s_headless_mode)
+        {
+            eos_headless_ipc_poll();
+            eos_headless_websocket_poll();
+        }
+        eos_esh_vscode_poll();
         uint32_t d = eos_main_loop();
 #if EOS_ENABLE_DIAG
         eos_diag_periodic_sample();
 #endif
+        if (s_headless_mode)
+        {
+            eos_headless_ipc_poll();
+            eos_headless_websocket_poll();
+        }
+        /* Headless transports use non-blocking sockets and may need several
+         * polls to finish a full RGB565 frame.  LVGL can return
+         * LV_NO_TIMER_READY when no UI timer is pending; do not turn that
+         * value into a multi-hour sleep and stall the WebSocket. */
+        if (s_headless_mode && d > 5U)
+        {
+            d = 5U;
+        }
         usleep(d * 1000);
+    }
+    if (s_headless_mode)
+    {
+        eos_headless_websocket_shutdown();
+        eos_headless_ipc_shutdown();
     }
 #endif
     return 0;
 }
 
 #ifndef __EMSCRIPTEN__
-static void _crown_clicked_cb(lv_event_t *e)
+static void _crown_short_clicked_cb(lv_event_t *e)
 {
     eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+}
+
+static void _crown_long_pressed_cb(lv_event_t *e)
+{
+    eos_crown_button_report(EOS_BUTTON_STATE_LONG_PRESSED);
 }
 
 static void _side_button_clicked_cb(lv_event_t *e)
@@ -348,6 +445,11 @@ static void _side_button_clicked_cb(lv_event_t *e)
 EMSCRIPTEN_KEEPALIVE void eos_wasm_crown_click(void)
 {
     eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+}
+
+EMSCRIPTEN_KEEPALIVE void eos_wasm_crown_long_press(void)
+{
+    eos_crown_button_report(EOS_BUTTON_STATE_LONG_PRESSED);
 }
 
 static char *g_wasm_last_read_code = NULL;
@@ -369,6 +471,17 @@ EMSCRIPTEN_KEEPALIVE int eos_wasm_launch_app_by_id(const char *app_id)
 
 EMSCRIPTEN_KEEPALIVE int eos_wasm_reload_current_script(void)
 {
+    eos_activity_t *current = eos_activity_get_current();
+    const char *app_id = current ? eos_activity_get_app_id(current) : NULL;
+    if (current && app_id && eos_activity_get_type(current) == EOS_ACTIVITY_TYPE_APP)
+    {
+        /* Script Apps must go through SPM so the program identity, Activity
+         * and Recent Apps state are restarted as one transaction.  A native
+         * Activity is not a script reload target. */
+        if (spm_get_program_by_id_any_state(app_id))
+            return eos_app_restart_by_id(app_id) == EOS_OK ? 1 : 0;
+        return 0;
+    }
     return script_engine_reload_current_script() == EOS_OK ? 1 : 0;
 }
 
@@ -451,20 +564,40 @@ EMSCRIPTEN_KEEPALIVE const char *eos_wasm_read_app_main_js(const char *app_id)
 }
 #endif
 
-typedef struct
+static int _sdl_mousewheel_event_watch(void *user_data, SDL_Event *event)
 {
-    int16_t diff;
-    lv_indev_state_t state;
-} lv_sdl_mousewheel_t;
+    LV_UNUSED(user_data);
 
-static void _mouse_wheel_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
+    switch (event->type)
+    {
+        case SDL_MOUSEWHEEL:
+#ifdef __EMSCRIPTEN__
+            if (event->wheel.y < 0)
+                eos_crown_encoder_report(1);
+            else if (event->wheel.y > 0)
+                eos_crown_encoder_report(-1);
+#else
+            eos_crown_encoder_report((eos_crown_encoder_diff_t)-event->wheel.y);
+#endif
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            if (event->button.button == SDL_BUTTON_MIDDLE)
+                eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
+            break;
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+static void _register_sdl_mousewheel_event_watch(void)
 {
-    lv_sdl_mousewheel_t *dsc = lv_indev_get_driver_data(indev);
+    if (s_sdl_mousewheel_event_watch_registered)
+        return;
 
-    eos_crown_encoder_report(dsc->diff);
-    if (dsc->state == LV_INDEV_STATE_PRESSED)
-        eos_crown_button_report(EOS_BUTTON_STATE_CLICKED);
-    dsc->diff = 0;
+    SDL_AddEventWatch(_sdl_mousewheel_event_watch, NULL);
+    s_sdl_mousewheel_event_watch_registered = true;
 }
 
 /**
@@ -477,6 +610,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_group_set_default(lv_group_create());
 
     lv_display_t *disp = lv_sdl_window_create(w, h);
+    _register_sdl_mousewheel_event_watch();
     lv_sdl_window_set_resizeable(disp, false);
     lv_sdl_window_set_title(disp, "ElenixOS Simulator");
 
@@ -504,7 +638,7 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif
 
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
-    lv_indev_set_read_cb(mousewheel, _mouse_wheel_read_cb);
+    lv_indev_set_display(mousewheel, disp);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
@@ -514,6 +648,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     lv_obj_t *simulator_container = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(simulator_container);
     lv_obj_set_size(simulator_container, EOS_DISPLAY_WIDTH, EOS_DISPLAY_HEIGHT);
+    lv_obj_set_style_bg_color(simulator_container, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(simulator_container, LV_OPA_COVER, 0);
     lv_obj_remove_flag(simulator_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_center(simulator_container);
 
@@ -634,9 +770,18 @@ static void _tab_switch_cb(lv_event_t *e)
 
 static lv_display_t *hal_init(int32_t w, int32_t h)
 {
+#ifndef __EMSCRIPTEN__
+    if (s_headless_mode)
+    {
+        lv_group_set_default(lv_group_create());
+        return eos_headless_display_create(w, h, s_headless_socket_path, s_headless_websocket_port);
+    }
+#endif
+
     lv_group_set_default(lv_group_create());
 
     lv_display_t *disp = lv_sdl_window_create(w, h);
+    _register_sdl_mousewheel_event_watch();
     lv_sdl_window_set_resizeable(disp, true);
     lv_sdl_window_set_title(disp, "ElenixOS Simulator");
 
@@ -668,9 +813,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
 #endif
 
     lv_indev_t *mousewheel = lv_sdl_mousewheel_create();
-    // lv_indev_set_display(mousewheel, disp);
+    lv_indev_set_display(mousewheel, disp);
     // lv_indev_set_group(mousewheel, lv_group_get_default());
-    lv_indev_set_read_cb(mousewheel, _mouse_wheel_read_cb);
 
     lv_indev_t *kb = lv_sdl_keyboard_create();
     lv_indev_set_display(kb, disp);
@@ -830,7 +974,8 @@ static lv_display_t *hal_init(int32_t w, int32_t h)
     static lv_style_prop_t props[] = {LV_STYLE_IMAGE_RECOLOR_OPA, 0};
     lv_style_transition_dsc_init(&tr, props, lv_anim_path_linear, 100, 0, NULL);
     lv_style_set_transition(&style_pressed, &tr);
-    lv_obj_add_event_cb(crown, _crown_clicked_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(crown, _crown_short_clicked_cb, LV_EVENT_SHORT_CLICKED, NULL);
+    lv_obj_add_event_cb(crown, _crown_long_pressed_cb, LV_EVENT_LONG_PRESSED, NULL);
 
     lv_obj_add_style(crown, &style_pressed, LV_STATE_PRESSED);
 

@@ -121,10 +121,6 @@ export function suite() {
         let p = obj.getParent();
         if (!p) throw new Error("null");
     });
-    test("getScreen -> handle", () => {
-        let s = obj.getScreen();
-        if (!s) throw new Error("null");
-    });
     test("getChildCount -> number", () => {
         let n = parent.getChildCount();
         if (typeof n !== "number") throw new Error("type");
@@ -575,6 +571,11 @@ export function suite() {
     test("fadeOut", () => obj.fadeOut(200, 0));
 
     /* ---- 11. Flags ------------------------------------------------- */
+    test("flag constants are LVGL masks", () => {
+        if (lv.OBJ_FLAG_HIDDEN !== 1 || lv.OBJ_FLAG_CLICKABLE !== 2 || lv.OBJ_FLAG_SCROLLABLE !== 16) {
+            throw new Error("flag constants are not bit masks");
+        }
+    });
     test("addFlag(CLICKABLE)", () => obj.addFlag(lv.OBJ_FLAG_CLICKABLE));
     test("hasFlag(CLICKABLE) -> true", () => {
         if (!obj.hasFlag(lv.OBJ_FLAG_CLICKABLE)) throw new Error("expected true");
@@ -830,9 +831,8 @@ export function suite() {
     test("prop parent set (reparent)", () => {
         obj.parent = parent;
     });
-    test("prop screen get", () => {
-        let s = obj.screen;
-        if (!s) throw new Error("null");
+    test("prop screen is not exported", () => {
+        if (typeof obj.screen !== "undefined") throw new Error("screen property is exposed");
     });
     test("prop childCount get", () => {
         if (typeof obj.childCount !== "number") throw new Error("type");

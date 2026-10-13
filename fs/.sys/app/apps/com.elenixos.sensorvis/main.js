@@ -520,7 +520,7 @@ function createHeartRateCard(parent) {
     chart.setSize(chartW, chartH);
     chart.setPos(16, 106);
     chart.setType(lv.CHART_TYPE_LINE);
-    chart.setRange(lv.CHART_AXIS_PRIMARY_Y, 0, 100);
+    chart.setAxisRange(lv.CHART_AXIS_PRIMARY_Y, 0, 100);
     chart.setPointCount(50);
     chart.setStyleBgColor(lv.color.hex(C.PANEL_BG), lv.PART_MAIN);
     chart.setStyleBgOpa(60, lv.PART_MAIN);
@@ -654,9 +654,8 @@ const env     = createEnvCard(page);
 // ==========================================================================
 //  Sensor configuration
 // ==========================================================================
-// Enable all sensors we need. Note: we re-apply the sample period in the
-// update loop (every 25 ticks ≈ 1s) to keep sensors enabled even if the
-// watchface widgets unsubscribe when the watchface is hidden.
+// Enable all sensors we need. The sensor service owns the sampling lifecycle;
+// keep this configuration one-shot and let the service handle mode changes.
 eos.sensor.setSamplePeriod(eos.SENSOR_ACCE,   40);
 eos.sensor.setSamplePeriod(eos.SENSOR_GYRO,   40);
 eos.sensor.setSamplePeriod(eos.SENSOR_MAG,   100);
@@ -686,20 +685,7 @@ function padL(s, w) {
 }
 
 function updateSensors() {
-    tick++;
-
-    // Re-apply sample period every ~1s to keep sensors enabled
-    // (watchface unsubscribe may disable them when watchface is hidden)
-    if (tick % 25 === 0) {
-        eos.sensor.setSamplePeriod(eos.SENSOR_ACCE,   40);
-        eos.sensor.setSamplePeriod(eos.SENSOR_GYRO,   40);
-        eos.sensor.setSamplePeriod(eos.SENSOR_MAG,   100);
-        eos.sensor.setSamplePeriod(eos.SENSOR_HR,   1000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_TEMP, 2000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_BARO, 2000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_LIGHT,1000);
-        eos.sensor.setSamplePeriod(eos.SENSOR_STEP, 1000);
-    }
+    tick += 1;
 
     // ── IMU ───────────────────────────────────────────────────
     const acce = eos.sensor.readLatest(eos.SENSOR_ACCE);

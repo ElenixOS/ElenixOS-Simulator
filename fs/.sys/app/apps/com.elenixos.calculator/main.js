@@ -41,7 +41,7 @@ const COLOR_TEXT_LIGHT = lv.color.hex(0xFFFFFF);
 const COLOR_TEXT_DARK = lv.color.hex(0x000000);
 const MAX_INPUT_LEN = 14;
 const MAX_ABS_VALUE = 999999999999;
-const STATE_PRESSED = 0x0020;
+const STATE_PRESSED = lv.STATE_PRESSED;
 
 let currentInput = "0";
 let storedValue = null;
