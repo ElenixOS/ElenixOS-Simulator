@@ -12,6 +12,8 @@ const FACE_WIDTH = Math.round(DESIGN_WIDTH * FIT);
 const FACE_HEIGHT = Math.round(DESIGN_HEIGHT * FIT);
 const FACE_X = Math.round((DISPLAY_WIDTH - FACE_WIDTH) / 2);
 const FACE_Y = Math.round((DISPLAY_HEIGHT - FACE_HEIGHT) / 2);
+const SYSTEM_ICON_FONT_SIZE = 30;
+const SYSTEM_ICON_LINE_HEIGHT = 43;
 const USE_MOCK_DATA = true;
 
 const MOCK = {
@@ -109,7 +111,7 @@ function addSystemIcon(glyph, centerX, centerY, size, color) {
         y: centerY,
         width: size,
         height: size,
-        fontSize: 30,
+        fontSize: SYSTEM_ICON_FONT_SIZE,
         color,
         text: glyph,
     });
@@ -295,8 +297,8 @@ const posX = 109;
 const posY = 230;
 const musicGlyph = addSystemIcon(lv.SYMBOL_AUDIO, posX, posY, 48, C.white);
 
-// LVGL labels top-align their text line. Center its 30px line in the 48px box.
-musicGlyph.setPos(faceX(posX - 48 / 2), faceY(posY - 30 / 2));
+// At 30px, the system TTF's 43px line box is centered in the 48px icon slot.
+musicGlyph.setPos(faceX(posX - 48 / 2), faceY(posY - SYSTEM_ICON_LINE_HEIGHT / 2));
 addIcon("assets/icons/globe-realistic.png", 155, 270, 80, 80);
 
 const activityRings = eos.ww.metricRings(root, {
@@ -328,7 +330,7 @@ const temperatureLowValue = addArcLabel({
 const temperatureValue = addArcLabel({
     radius: 190,
     angle: 123,
-    fontSize: px(36),
+    fontSize: px(30),
     color: C.white,
     text: "--°",
 });
@@ -342,7 +344,7 @@ const temperatureHighValue = addArcLabel({
 });
 
 const weekdayValue = addLabel({ x: 195, y: 124, width: 70, height: 24, fontSize: 18, color: C.red, text: "---" });
-const dateValue = addLabel({ x: 195, y: 158, width: 72, height: 44, fontSize: 39, color: C.white, text: "--" });
+const dateValue = addLabel({ x: 195, y: 158, width: 72, height: 44, fontSize: 30, color: C.white, text: "--" });
 
 const uviValueCenter = { x: 72, y: 398 };
 const uviValueDx = uviValueCenter.x - 195;
